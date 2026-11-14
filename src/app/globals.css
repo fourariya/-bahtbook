@@ -311,6 +311,34 @@
     }
   }
 
+  /* a link inside a sentence: always underlined, so it reads as a link without hover */
+  .text-link {
+    border-radius: 2px;
+    color: var(--color-ink);
+    font-weight: 500;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-decoration-color: var(--color-muted);
+    text-underline-offset: 3px;
+    transition:
+      color var(--dur-micro) var(--ease-out),
+      text-decoration-color var(--dur-micro) var(--ease-out);
+  }
+  @media (hover: hover) {
+    .text-link:hover {
+      color: var(--color-accent-2);
+      text-decoration-color: var(--color-accent-2);
+    }
+  }
+  .text-link:active {
+    color: var(--color-accent-2);
+  }
+  .text-link:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+    text-decoration-color: var(--color-ink);
+  }
+
   /* ---- navigation ------------------------------------------------------- */
   .nav-link {
     position: relative;

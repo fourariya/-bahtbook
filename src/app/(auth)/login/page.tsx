@@ -34,8 +34,14 @@ export default async function LoginPage({
         configured={isSupabaseConfigured()}
       />
       <p className="mt-6 text-sm text-muted">
-        ยังไม่มีบัญชีใช่ไหม <Link href="/signup">สมัครใช้งาน</Link> หรือ{" "}
-        <Link href="/demo">ลองใช้ตัวอย่างโดยไม่ต้องสมัคร</Link>
+        ยังไม่มีบัญชีใช่ไหม{" "}
+        <Link href="/signup" className="text-link">
+          สมัครใช้งาน
+        </Link>{" "}
+        หรือ{" "}
+        <Link href="/demo" className="text-link">
+          ลองใช้ตัวอย่างโดยไม่ต้องสมัคร
+        </Link>
       </p>
     </>
   );

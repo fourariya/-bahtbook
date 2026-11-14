@@ -18,7 +18,10 @@ export default function SignUpPage() {
       </p>
       <AuthForm mode="signup" configured={isSupabaseConfigured()} />
       <p className="mt-6 text-sm text-muted">
-        มีบัญชีอยู่แล้วใช่ไหม <Link href="/login">เข้าสู่ระบบ</Link>
+        มีบัญชีอยู่แล้วใช่ไหม{" "}
+        <Link href="/login" className="text-link">
+          เข้าสู่ระบบ
+        </Link>
       </p>
     </>
   );
