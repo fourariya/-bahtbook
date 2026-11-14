@@ -1,0 +1,10 @@
+.next
+node_modules
+package-lock.json
+playwright-report
+test-results
+screenshots
+.hallmark
+next-env.d.ts
+src/app/tokens.css
+src/app/base.css

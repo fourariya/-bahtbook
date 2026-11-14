@@ -1,0 +1,4 @@
+# Store text with LF line endings on every platform, so formatting checks give
+# the same result after a fresh clone on Windows, macOS and Linux.
+* text=auto eol=lf
+*.png binary

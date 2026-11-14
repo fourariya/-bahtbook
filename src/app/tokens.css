@@ -1,0 +1,105 @@
+/* Design tokens: Hallmark "Coral" theme, with the accent moved to burnt orange
+ * and the faces swapped for a Thai-first pairing. Declared as a Tailwind theme
+ * block so every token is also a utility (bg-paper, text-muted, rounded-card).
+ * No colour or font-family is written anywhere outside this file. */
+@theme static {
+  --color-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+
+  /* paper and ink */
+  --color-paper: oklch(97% 0.006 55);
+  --color-paper-2: oklch(94.5% 0.007 55);
+  --color-paper-3: oklch(91.5% 0.009 55);
+  --color-ink: oklch(21% 0.012 38);
+  --color-ink-2: oklch(29% 0.013 40);
+  --color-muted: oklch(45% 0.013 45);
+  --color-rule: oklch(87% 0.009 55);
+  --color-rule-2: oklch(81% 0.011 55);
+
+  /* burnt orange: the one accent. accent marks graphics and selection,
+     accent-2 is the text-safe strength. */
+  --color-accent: oklch(63% 0.16 48);
+  --color-accent-2: oklch(49% 0.15 45);
+  --color-accent-ink: oklch(21% 0.012 38);
+  --color-focus: oklch(52% 0.16 47);
+
+  /* stationery */
+  --color-cotton: oklch(98.8% 0.0045 80);
+  --color-desk: oklch(94.3% 0.008 64);
+  --color-print: oklch(23% 0.012 38);
+  --color-board: oklch(22% 0.011 40);
+  --color-board-type: oklch(96.5% 0.006 70);
+  --color-board-muted: oklch(78% 0.012 60);
+  --color-paid: oklch(54% 0.16 45);
+
+  /* financial states, restrained */
+  --color-success: oklch(44% 0.09 155);
+  --color-error: oklch(49% 0.17 25);
+  --color-slate: oklch(52% 0.03 250);
+
+  /* category palette: keys stored in categories.color */
+  --color-cat-clay: oklch(58% 0.13 45);
+  --color-cat-ochre: oklch(64% 0.11 80);
+  --color-cat-moss: oklch(56% 0.09 130);
+  --color-cat-pine: oklch(46% 0.07 175);
+  --color-cat-slate: oklch(52% 0.03 250);
+  --color-cat-plum: oklch(46% 0.08 345);
+  --color-cat-rose: oklch(60% 0.1 12);
+  --color-cat-ink: oklch(33% 0.012 40);
+
+  /* type: IBM Plex Sans Thai throughout, Geist Mono for figures in a column */
+  --font-display: var(--font-thai), "IBM Plex Sans Thai", ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-thai), "IBM Plex Sans Thai", ui-sans-serif, system-ui, sans-serif;
+  --font-outlier: var(--font-mono), var(--font-thai), ui-monospace, monospace;
+
+  /* fixed app scale, ratio 1.2 */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.2rem;
+  --text-xl: 1.44rem;
+  --text-2xl: 1.728rem;
+  --text-3xl: 2.074rem;
+  --text-figure: 2.5rem;
+  --text-figure-lg: 3.75rem;
+  --text-hero: 2.986rem;
+
+  --radius-card: 8px;
+  --radius-input: 6px;
+  --radius-groove: 10px;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 1px 2px oklch(20% 0.01 35 / 0.05);
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --tracking-display: -0.015em;
+}
+
+:root {
+  color-scheme: light;
+  --space-3xs: 2px; --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px; --space-2xl: 64px; --space-3xl: 96px;
+  --dur-micro: 120ms; --dur-short: 220ms; --dur-long: 420ms;
+  --container: 76rem; --gutter: 32px;
+  --z-base: 1; --z-raised: 10; --z-dropdown: 100; --z-sticky: 200; --z-sticky-nav: 300; --z-modal: 400;
+  --display-weight: 600;
+  --rule-hair: 1px;
+  --control: 40px;
+
+  /* one light, from the left: lit edge top and left, shade bottom and right, cast falling right */
+  --shade: 32% 0.03 50; --lit: 100% 0.005 80; --deep: 7% 0.01 40;
+  --tex-cotton: url("/textures/cotton.svg");
+  --edge-stock: inset 0 1px 0 oklch(var(--lit) / 0.9), inset 0 -1px 0 oklch(var(--shade) / 0.07), 0 0 0 0.5px oklch(var(--shade) / 0.22), 0 1px 0 oklch(var(--shade) / 0.12);
+  --cast-stock: 6px 5px 10px -6px oklch(var(--shade) / 0.3);
+  --cast-stock-lift: 12px 10px 18px -8px oklch(var(--shade) / 0.3);
+  --press-groove: inset 1px 1.5px 2px oklch(var(--shade) / 0.16), inset -1px -1px 0 oklch(var(--lit) / 0.9), 0 0 0 0.5px oklch(var(--shade) / 0.2);
+}
+
+@media (max-width: 60rem) { :root { --gutter: 24px; } }
+@media (max-width: 40rem) { :root { --gutter: 16px; } }
+@media (pointer: coarse) { :root { --control: 44px; } }

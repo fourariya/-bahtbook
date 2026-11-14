@@ -1,0 +1,40 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+build/
+next-env.d.ts
+*.tsbuildinfo
+
+# environment and secrets (only the placeholder template is tracked)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# test output
+coverage/
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+playwright/.auth/
+
+# client files and generated output
+client-data/
+output/
+
+# local tooling, logs, caches
+.claude/
+.hallmark/
+.vscode/
+.idea/
+.vercel/
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+tmp/
