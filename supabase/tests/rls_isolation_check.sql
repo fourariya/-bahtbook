@@ -5,7 +5,9 @@
 --   2. two users exist under Authentication > Users (created AFTER the migration,
 --      so each one has its profile and default categories).
 --
--- Edit the two email addresses below, then run the whole file.
+-- Paste this whole file into the SQL Editor, put the two test email addresses
+-- in place of the placeholders there, and run it. Leave the file in the
+-- repository unchanged, so no account address is ever committed.
 --
 -- What it does: acting as user A it creates one transaction, then acting as
 -- user B and as a signed-out visitor it tries to read, change, delete and forge

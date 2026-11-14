@@ -7,6 +7,8 @@ try {
   // No .env.local: the tests that need Supabase are skipped.
 }
 
+const API_ONLY = /isolation-live\.spec\.ts$/;
+
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 const baseURL = `http://127.0.0.1:${PORT}`;
 
@@ -25,9 +27,17 @@ export default defineConfig({
   projects: [
     {
       name: "desktop",
+      testIgnore: API_ONLY,
       use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
     },
-    { name: "mobile", use: { ...devices["Pixel 7"], viewport: { width: 375, height: 812 } } },
+    {
+      name: "mobile",
+      testIgnore: API_ONLY,
+      use: { ...devices["Pixel 7"], viewport: { width: 375, height: 812 } },
+    },
+    // Direct calls to the Supabase API. No browser, and no trace files, so access
+    // tokens are never written to disk.
+    { name: "api", testMatch: API_ONLY, use: { trace: "off" } },
   ],
   webServer: {
     // Tests run against a production build, the same code that would be deployed.

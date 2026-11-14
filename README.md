@@ -244,33 +244,39 @@ end-to-end tests.
 
 ## Testing
 
-| Layer                                                              | What it proves                                                                                                                                                                                                                      | Needs Supabase |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| Unit, `tests/unit`                                                 | Money parsing and formatting, Bangkok dates and periods, totals, monthly and category aggregation, filtering, sorting, URL state, validation, CSV escaping, the redirect guard, the demo store                                      | No             |
-| Integration, `tests/integration`                                   | The real migration file run on PGlite (PostgreSQL compiled to WebAssembly): constraints, the composite foreign key, triggers, and Row Level Security for owner, other user and signed-out visitor, plus the manual RLS check script | No             |
-| End to end, `e2e/demo-workspace.spec.ts`, `e2e/auth-guard.spec.ts` | The three user journeys, validation, double submission, filters, sorting, CSV download, categories, charts, navigation and overflow at 1440px, 768px and 375px, route protection, auth form validation, security headers            | No             |
-| End to end, `e2e/auth-live.spec.ts`                                | Real login, a transaction created, edited and deleted in PostgreSQL and re-read after reload, logout                                                                                                                                | **Yes**        |
+| Layer                                                              | What it proves                                                                                                                                                                                                                                            | Needs Supabase |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| Unit, `tests/unit`                                                 | Money parsing and formatting, Bangkok dates and periods, totals, monthly and category aggregation, filtering, sorting, URL state, validation, CSV escaping, the redirect guard, the demo store                                                            | No             |
+| Integration, `tests/integration`                                   | The real migration file run on PGlite (PostgreSQL compiled to WebAssembly): constraints, the composite foreign key, triggers, and Row Level Security for owner, other user and signed-out visitor, plus the manual RLS check script                       | No             |
+| End to end, `e2e/demo-workspace.spec.ts`, `e2e/auth-guard.spec.ts` | The three user journeys, validation, double submission, filters, sorting, CSV download, categories, charts, navigation and overflow at 1440px, 768px and 375px, route protection, auth form validation, security headers                                  | No             |
+| End to end, `e2e/isolation-live.spec.ts`                           | Direct Supabase REST calls with no application code in between: no session is refused on every table, a user receives only their own rows, ownership cannot be forged, and a second account cannot read, update, delete or reuse the first account's data | **Yes**        |
+| End to end, `e2e/auth-live.spec.ts`                                | Real login, a transaction created, edited and deleted in PostgreSQL and re-read after reload, logout                                                                                                                                                      | **Yes**        |
 
-**Results on 15 November 2026** (Windows 11, Node 24):
+**Results on 15 November 2026** (Windows 11, Node 24), with a dedicated Supabase
+test project connected:
 
 | Check                    | Result                         |
 | ------------------------ | ------------------------------ |
 | `npx prettier --check .` | Pass                           |
 | `npx eslint .`           | Pass                           |
 | `npx tsc --noEmit`       | Pass                           |
-| `npx vitest run`         | 133 passed                     |
-| `npx playwright test`    | 79 passed, 5 skipped, 0 failed |
+| `npx vitest run`         | 134 passed                     |
+| `npx playwright test`    | 85 passed, 2 skipped, 0 failed |
 
-**Not yet verified.** The 5 skipped tests are the 4 signed-in tests in
-`auth-live.spec.ts` (2 tests on 2 screen sizes) plus one keyboard test that is
-deliberately run on desktop only. The signed-in tests were skipped because no
-Supabase project was available when this was built. Until they are run against
-a real project, the following has **not** been exercised end to end: sign-up
-and login against Supabase Auth, the confirmation email link, and the Server
-Actions reading and writing through PostgREST. The SQL itself (schema,
-constraints, RLS) is covered by the integration tests, with one caveat: PGlite
-uses a small shim for `auth.users`, `auth.uid()` and the `anon` /
-`authenticated` roles, which Supabase normally provides.
+The Playwright run includes real login and a transaction created, edited and
+deleted in PostgreSQL (4 tests), and direct calls to the Supabase REST API
+showing that a request without a session is refused on every table and that a
+signed-in user receives only their own rows (2 tests).
+
+The 2 skipped tests are a keyboard test that is deliberately run on desktop
+only, and the two-account API isolation test, which needs a second test user
+(`E2E_USER2_EMAIL`, `E2E_USER2_PASSWORD`).
+
+**Not verified by an automated test:** the sign-up form end to end, and the
+confirmation email link (`/auth/confirm` with a real token). The signed-in
+tests log in with a user created in the dashboard. Check both by hand before
+going live. Without the Supabase settings, the signed-in and API tests are
+skipped and the suite reports 79 passed and 8 skipped.
 
 **Running the signed-in tests safely.** They create and delete rows, so they
 run only when all of the following are set in `.env.local`:
@@ -281,6 +287,8 @@ SUPABASE_PUBLISHABLE_KEY=...
 E2E_USER_EMAIL=...             # a throwaway, already confirmed user in that project
 E2E_USER_PASSWORD=...
 E2E_CONFIRM_TEST_PROJECT=yes   # your statement that this project is not production
+E2E_USER2_EMAIL=...            # optional second throwaway user, for the two-account test
+E2E_USER2_PASSWORD=...
 ```
 
 Create that user under _Authentication → Users → Add user_ with "Auto Confirm
@@ -288,12 +296,19 @@ User" ticked, and do it **after** applying the migration: the profile and the
 default categories are created by a trigger at the moment the user is created.
 
 Then run `npm run test:e2e`. With the settings in place the expected result is
-83 passed and 1 skipped. The tests only touch rows they created under that one
+86 passed and 1 skipped with both test users set, or 85 passed and 2 skipped
+with one. The tests only touch rows they created under that one
 account. Playwright never attaches to a server that is already running: if port
 3100 is taken, the run stops instead of testing an unknown application.
 
 **Verifying isolation between two users.** Create a second user the same way,
-then:
+then use any of these. The first is automatic.
+
+0. _Through the API._ Add `E2E_USER2_EMAIL` and `E2E_USER2_PASSWORD` to
+   `.env.local` and run `npx playwright test --project=api`. The first user
+   creates a row; the second then tries to read, update and delete it and to
+   reuse the first user's category, all through direct REST calls. The row is
+   removed afterwards.
 
 1. _In the database._ Open
    [`supabase/tests/rls_isolation_check.sql`](supabase/tests/rls_isolation_check.sql)

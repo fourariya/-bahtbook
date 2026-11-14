@@ -458,12 +458,24 @@ describe("referential integrity", () => {
 });
 
 describe("manual RLS check script (supabase/tests/rls_isolation_check.sql)", () => {
-  const script = readFileSync(
+  const source = readFileSync(
     fileURLToPath(new URL("../../supabase/tests/rls_isolation_check.sql", import.meta.url)),
     "utf8",
-  )
-    .replace("user-a@example.com", "alice@example.test")
-    .replace("user-b@example.com", "bob@example.test");
+  );
+
+  // The two addresses are set by variable, not by matching the placeholder text,
+  // so the test keeps working whatever addresses the file currently holds.
+  const withUsers = (emailA: string, emailB: string) =>
+    source
+      .replace(/(email_a text := ')[^']*(')/, `$1${emailA}$2`)
+      .replace(/(email_b text := ')[^']*(')/, `$1${emailB}$2`);
+
+  const script = withUsers("alice@example.test", "bob@example.test");
+
+  it("the two test addresses can be set in the script", () => {
+    expect(script).toContain("email_a text := 'alice@example.test'");
+    expect(script).toContain("email_b text := 'bob@example.test'");
+  });
 
   const leftovers = async () =>
     Number(
@@ -481,9 +493,9 @@ describe("manual RLS check script (supabase/tests/rls_isolation_check.sql)", () 
   });
 
   it("stops with a clear error when the users are missing", async () => {
-    await expect(
-      db.exec(script.replace("alice@example.test", "nobody@example.test")),
-    ).rejects.toThrow(/both test users must exist/);
+    await expect(db.exec(withUsers("nobody@example.test", "bob@example.test"))).rejects.toThrow(
+      /both test users must exist/,
+    );
   });
 
   it("fails, and rolls itself back, when Row Level Security is switched off", async () => {
