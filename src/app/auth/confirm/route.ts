@@ -66,24 +66,32 @@ export async function GET(request: NextRequest) {
       // The `type` in the URL counts only for a token that was verified as that type.
       const { data } = await supabase.auth.getClaims();
       const claims = data?.claims;
+      const userId = claims?.sub;
       const sessionId = claims?.session_id;
-      const recovery =
+      const isRecovery =
         isRecoveryConfirmation({ viaTokenHash, type, amr: claims?.amr }) &&
+        typeof userId === "string" &&
+        userId.length > 0 &&
         typeof sessionId === "string" &&
         sessionId.length > 0;
 
-      // Only this branch can unlock /reset-password, and only for this session.
-      if (recovery) await markRecoverySession(sessionId);
+      // Only this branch can unlock /reset-password: it signs a proof for this
+      // user and session. Any other verified link removes a proof left behind.
+      // Without a signing secret no proof is made, and the reset page refuses.
+      if (isRecovery) await markRecoverySession(userId, sessionId);
       else await clearRecoveryMarker();
 
       redirect(
         postConfirmPath({
           type: null,
-          recoverySession: recovery,
+          recoverySession: isRecovery,
           workspacePath: safeNextPath(searchParams.get("next")),
         }),
       );
     }
+
+    // The link could not be verified: no proof may survive it.
+    await clearRecoveryMarker();
   }
 
   redirect(`${failedConfirmPath(type)}?notice=link-invalid`);

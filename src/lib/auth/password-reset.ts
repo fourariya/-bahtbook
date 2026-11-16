@@ -30,21 +30,12 @@ export const RECOVERY_METHODS: readonly string[] = ["recovery", "otp"];
 
 /**
  * Name and path of the httpOnly cookie that /auth/confirm sets only after it
- * has itself verified a recovery link. Its value is the id of the session that
- * link started, so it cannot be carried over to any other session.
+ * has itself verified a recovery link. Its value is a proof signed by the
+ * server for one user and one session (see recovery-proof.ts). The cookie
+ * being present proves nothing; only a valid signature does.
  */
 export const RECOVERY_MARKER_COOKIE = "bb-recovery";
 export const RECOVERY_MARKER_PATH = "/reset-password";
-
-/** True when the marker names exactly the session making the request. */
-export function recoveryMarkerMatches(marker: unknown, sessionId: unknown): boolean {
-  return (
-    typeof marker === "string" &&
-    typeof sessionId === "string" &&
-    sessionId.length > 0 &&
-    marker === sessionId
-  );
-}
 
 /**
  * Whether a link that /auth/confirm just verified was a password recovery

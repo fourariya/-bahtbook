@@ -194,6 +194,7 @@ export async function updatePassword(
   if (!supabase) return { status: "error", message: NOT_CONFIGURED };
 
   if (!(await hasRecoverySession(supabase))) {
+    await clearRecoveryMarker();
     return { status: "expired", message: PASSWORD_UPDATE_MESSAGES.expired };
   }
 
@@ -222,6 +223,7 @@ export async function updatePassword(
 export async function logOut(): Promise<void> {
   const supabase = await createClient();
   if (supabase) await supabase.auth.signOut({ scope: "local" });
+  await clearRecoveryMarker();
   revalidatePath("/", "layout");
   redirect("/login");
 }

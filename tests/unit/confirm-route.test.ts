@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * The /auth/confirm route, run for real with Supabase and the Next.js request
@@ -34,8 +34,22 @@ import type { NextRequest } from "next/server";
 
 import { GET } from "@/app/auth/confirm/route";
 import { RECOVERY_MARKER_COOKIE } from "@/lib/auth/password-reset";
+import { createRecoveryProof, verifyRecoveryProof } from "@/lib/auth/recovery-proof";
 
+const USER_ID = "user-1";
 const SESSION_ID = "session-1";
+// Made up for these tests. Not used anywhere else.
+const SECRET = "unit-test-only-recovery-proof-secret-0001";
+const seconds = () => Math.floor(Date.now() / 1000);
+
+/** True when the cookie holds a proof this server signed for the given user and session. */
+const provesRecoveryFor = (userId: string, sessionId: string) =>
+  verifyRecoveryProof(
+    shared.cookies.get(RECOVERY_MARKER_COOKIE),
+    { userId, sessionId },
+    seconds(),
+    SECRET,
+  );
 
 function fakeSupabase(options: { method?: string; verifyFails?: boolean; sessionId?: unknown }) {
   const { method = "otp", verifyFails = false } = options;
@@ -46,7 +60,7 @@ function fakeSupabase(options: { method?: string; verifyFails?: boolean; session
       verifyOtp: vi.fn(outcome),
       exchangeCodeForSession: vi.fn(outcome),
       getClaims: vi.fn(async () => ({
-        data: { claims: { session_id: sessionId, amr: [{ method, timestamp: 1 }] } },
+        data: { claims: { sub: USER_ID, session_id: sessionId, amr: [{ method, timestamp: 1 }] } },
       })),
     },
   };
@@ -65,8 +79,17 @@ async function open(query: string): Promise<string> {
   throw new Error("the route did not redirect");
 }
 
+let errorLog: ReturnType<typeof vi.spyOn>;
+
 beforeEach(() => {
   shared.cookies = new Map();
+  vi.stubEnv("RECOVERY_PROOF_SECRET", SECRET);
+  errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  errorLog.mockRestore();
 });
 
 describe("/auth/confirm and the recovery marker", () => {
@@ -78,7 +101,14 @@ describe("/auth/confirm and the recovery marker", () => {
       type: "recovery",
       token_hash: "abc",
     });
-    expect(shared.cookies.get(RECOVERY_MARKER_COOKIE)).toBe(SESSION_ID);
+    expect(provesRecoveryFor(USER_ID, SESSION_ID)).toBe(true);
+    // Bound to both: it proves nothing for another user or another session.
+    expect(provesRecoveryFor("user-2", SESSION_ID)).toBe(false);
+    expect(provesRecoveryFor(USER_ID, "session-2")).toBe(false);
+    // The cookie carries neither id.
+    const value = shared.cookies.get(RECOVERY_MARKER_COOKIE)!;
+    expect(value).not.toContain(SESSION_ID);
+    expect(value).not.toContain(USER_ID);
   });
 
   it.each(["magiclink", "email", "signup", "invite", "email_change"])(
@@ -93,7 +123,22 @@ describe("/auth/confirm and the recovery marker", () => {
   it("marks a code link only when the Auth server recorded a recovery", async () => {
     shared.client = fakeSupabase({ method: "recovery" });
     expect(await open("code=abc")).toBe("/reset-password");
-    expect(shared.cookies.get(RECOVERY_MARKER_COOKIE)).toBe(SESSION_ID);
+    expect(provesRecoveryFor(USER_ID, SESSION_ID)).toBe(true);
+  });
+
+  it("issues no proof without a signing secret, and logs only the setting's name", async () => {
+    for (const secret of ["", "short-secret"]) {
+      vi.stubEnv("RECOVERY_PROOF_SECRET", secret);
+      shared.cookies.set(RECOVERY_MARKER_COOKIE, "left-over");
+      shared.client = fakeSupabase({});
+      // The reset page is still where the visitor lands; it will refuse.
+      expect(await open("token_hash=abc&type=recovery")).toBe("/reset-password");
+      expect(shared.cookies.has(RECOVERY_MARKER_COOKIE)).toBe(false);
+    }
+    const logged = JSON.stringify(errorLog.mock.calls);
+    expect(logged).toContain("RECOVERY_PROOF_SECRET");
+    expect(logged).not.toContain("short-secret");
+    expect(logged).not.toContain(SESSION_ID);
   });
 
   it.each(["magiclink", "email/signup", "oauth", "otp"])(
@@ -105,14 +150,22 @@ describe("/auth/confirm and the recovery marker", () => {
     },
   );
 
-  it("removes an earlier marker when another kind of link is opened", async () => {
-    shared.cookies.set(RECOVERY_MARKER_COOKIE, "an-older-session");
+  it("removes an earlier proof when another kind of link is opened", async () => {
+    // A genuine proof for this very user and session, left from an earlier recovery.
+    shared.cookies.set(
+      RECOVERY_MARKER_COOKIE,
+      createRecoveryProof({ userId: USER_ID, sessionId: SESSION_ID }, seconds(), SECRET),
+    );
     shared.client = fakeSupabase({});
     expect(await open("token_hash=abc&type=magiclink")).toBe("/app");
     expect(shared.cookies.has(RECOVERY_MARKER_COOKIE)).toBe(false);
   });
 
-  it("sets no marker when the link is invalid, expired or already used", async () => {
+  it("issues no proof, and removes an earlier one, when the link is invalid, expired or already used", async () => {
+    shared.cookies.set(
+      RECOVERY_MARKER_COOKIE,
+      createRecoveryProof({ userId: USER_ID, sessionId: SESSION_ID }, seconds(), SECRET),
+    );
     shared.client = fakeSupabase({ verifyFails: true });
     expect(await open("token_hash=abc&type=recovery")).toBe("/forgot-password?notice=link-invalid");
     expect(await open("code=abc")).toBe("/login?notice=link-invalid");

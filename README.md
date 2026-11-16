@@ -177,13 +177,20 @@ The migration is repeatable: it can be run again without errors or duplicates.
 3. `/reset-password` accepts the new password. Both the page and its Server
    Action require two things. First, a session that the verified token says
    was started by an emailed link within the last 15 minutes (the `amr`
-   claim, method `recovery` or `otp`). Second, an httpOnly marker cookie that
-   `/auth/confirm` sets only after it has itself verified a recovery link,
-   holding the id of the session that link started. The second check is
-   needed because Supabase records the same `otp` method for every
-   `token_hash` link: recovery, magic link, email code and sign-up
-   confirmation. An ordinary logged-in session, or a session from one of
-   those other links, cannot set a password there.
+   claim, method `recovery` or `otp`). Second, a signed proof that
+   `/auth/confirm` issues only after it has itself verified a recovery link.
+   The proof is an HMAC-SHA256, made with `RECOVERY_PROOF_SECRET`, over the
+   purpose, the user id, the session id and a 15-minute expiry. It is kept in
+   an httpOnly, SameSite=Lax cookie (Secure in production) that holds only the
+   expiry and the signature. A cookie can be rewritten by whoever controls
+   the browser, so its presence counts for nothing: a forged, altered,
+   expired or borrowed value fails the signature check. The proof is removed
+   after the password change, on logout, and whenever a link fails to verify
+   or another kind of link is opened. The second check is needed because
+   Supabase records the same `otp` method for every `token_hash` link:
+   recovery, magic link, email code and sign-up confirmation. An ordinary
+   logged-in session cannot set a password there, and without the secret
+   configured nobody can.
 4. After the change every session of the account is ended, on every device,
    and the user logs in with the new password.
 
@@ -232,10 +239,20 @@ end-to-end tests.
    SUPABASE_URL=                # https://<project-ref>.supabase.co
    SUPABASE_PUBLISHABLE_KEY=    # sb_publishable_... or the legacy anon key
    SITE_URL=http://localhost:3000
+   RECOVERY_PROOF_SECRET=       # at least 32 random characters, server only
    ```
 
-   Never put the secret or service-role key here. Nothing in this project
-   needs it.
+   Never put the Supabase secret or service-role key here. Nothing in this
+   project needs it. `RECOVERY_PROOF_SECRET` is this application's own
+   secret for signing the password recovery proof. Generate it yourself, use
+   a different value in every environment, and never commit it:
+
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+   ```
+
+   Without it the rest of the application works, but the reset-password page
+   refuses every recovery link.
 
 4. **Configure Supabase Auth** (_Authentication_ in the dashboard):
 
@@ -292,7 +309,7 @@ test project connected:
 | `npx prettier --check .` | Pass                            |
 | `npx eslint .`           | Pass                            |
 | `npx tsc --noEmit`       | Pass                            |
-| `npx vitest run`         | 259 passed                      |
+| `npx vitest run`         | 288 passed                      |
 | `npm run build`          | Pass                            |
 | `npx playwright test`    | 115 passed, 2 skipped, 0 failed |
 
@@ -316,10 +333,19 @@ and Server Actions. Supabase's API will change the password of any signed-in
 session that calls it directly, so for a stronger guarantee also review the
 password settings of the Email provider in the Supabase project ("Secure
 password change", and requiring the current password when updating, if the
-project offers it). A recovery link and a magic link both prove control of the
-mailbox, and Supabase verifies them through the same mechanism, so someone
-who can read the account's email can always recover the account; that is
-what recovery by email means.
+project offers it).
+
+**Recovery links and magic links are the same token to Supabase.** Its Auth
+server stores both in the same place and verifies both through the same code,
+so a token from a magic-link or email-code sign-in email is accepted when it is
+presented as `type=recovery`, and the other way round. Signing the proof does
+not change that: the proof shows that Supabase accepted a token as a recovery
+token for this user and session, not which email the token came from. A
+sign-up confirmation token is stored separately and is not accepted as a
+recovery token. In practice the two emails prove the same thing, control of the
+mailbox, and whoever can read the account's email can always recover the
+account. This application offers no magic-link or email-code sign-in; if those
+emails are not wanted at all, disable them in the Supabase project.
 
 **Manual test of password recovery** (test project, an inbox you can read):
 
@@ -419,9 +445,9 @@ Known limits of this demonstration:
 Nothing has been deployed. To deploy (for example on Vercel):
 
 1. Create the production Supabase project and run the migration.
-2. Set `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SITE_URL` (the public
-   `https://` address) in the host's environment settings. Do not add any
-   secret key.
+2. Set `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SITE_URL` (the public
+   `https://` address) and a newly generated `RECOVERY_PROOF_SECRET` in the
+   host's environment settings. Do not add any Supabase secret key.
 3. In Supabase Auth set the Site URL and add
    `https://<your-domain>/auth/confirm` to the Redirect URLs.
 4. Turn "Confirm email" on and configure custom SMTP before sharing the link

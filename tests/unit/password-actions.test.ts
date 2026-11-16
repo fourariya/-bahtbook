@@ -37,6 +37,7 @@ vi.mock("next/headers", () => ({
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn(async () => shared.client) }));
 
 import { logOut, requestPasswordReset, updatePassword } from "@/app/(auth)/actions";
+import { createRecoveryProof } from "@/lib/auth/recovery-proof";
 import {
   PASSWORD_UPDATE_MESSAGES,
   RECOVERY_MARKER_COOKIE,
@@ -46,8 +47,19 @@ import {
 const EMAIL = "owner@example.test";
 const PASSWORD = "a-brand-new-passphrase";
 const IDLE = { status: "idle" } as const;
-const SESSION_ID = "session-1";
 const seconds = () => Math.floor(Date.now() / 1000);
+const USER_ID = "user-1";
+const SESSION_ID = "session-1";
+// Made up for these tests. Not used anywhere else.
+const SECRET = "unit-test-only-recovery-proof-secret-0001";
+const OTHER_SECRET = "unit-test-only-recovery-proof-secret-0002";
+/** A proof as /auth/confirm would issue it, with any part overridden. */
+const proof = (over: { userId?: string; sessionId?: string; at?: number; secret?: string } = {}) =>
+  createRecoveryProof(
+    { userId: over.userId ?? USER_ID, sessionId: over.sessionId ?? SESSION_ID },
+    over.at ?? seconds(),
+    over.secret ?? SECRET,
+  );
 
 function form(values: Record<string, string>): FormData {
   const data = new FormData();
@@ -96,8 +108,9 @@ let errorLog: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   shared.host = "localhost:3000";
   shared.protocol = "http";
-  // /auth/confirm marked this session after verifying a recovery link.
-  shared.cookies = new Map([[RECOVERY_MARKER_COOKIE, SESSION_ID]]);
+  // /auth/confirm issued this proof after verifying a recovery link.
+  vi.stubEnv("RECOVERY_PROOF_SECRET", SECRET);
+  shared.cookies = new Map([[RECOVERY_MARKER_COOKIE, proof()]]);
   vi.stubEnv("SITE_URL", "https://bahtbook.example.test");
   errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -195,11 +208,11 @@ describe("updatePassword", () => {
   });
 
   // Supabase records "otp" for every token-hash link: recovery, magic link,
-  // email code and sign-up confirmation alike. Only the marker tells them apart.
+  // email code and sign-up confirmation alike. Only the signed proof tells them apart.
   it.each([
     ["a magic-link, email-code or sign-up confirmation session", "otp"],
     ["a recovery-type session that /auth/confirm did not mark", "recovery"],
-  ])("refuses %s (fresh emailed link, no marker)", async (_label, method) => {
+  ])("refuses %s (fresh emailed link, no proof)", async (_label, method) => {
     shared.cookies.clear();
     const supabase = fakeSupabase({ amr: [{ method, timestamp: seconds() - 30 }] });
     shared.client = supabase;
@@ -210,8 +223,10 @@ describe("updatePassword", () => {
 
   it.each([
     ["belongs to another session", { sessionId: "session-2" }],
-    ["is present but the token has no session id", { sessionId: undefined }],
-  ] as Array<[string, FakeOptions]>)("refuses when the marker %s", async (_label, options) => {
+    ["belongs to another user", { user: { id: "user-2" } }],
+    ["is presented with a token that has no session id", { sessionId: undefined }],
+    ["is presented with an empty session id", { sessionId: "" }],
+  ] as Array<[string, FakeOptions]>)("refuses when the proof %s", async (_label, options) => {
     const supabase = fakeSupabase(options);
     shared.client = supabase;
     const result = await updatePassword(IDLE, valid());
@@ -219,16 +234,68 @@ describe("updatePassword", () => {
     expect(supabase.auth.updateUser).not.toHaveBeenCalled();
   });
 
-  it("refuses an empty marker against an empty session id", async () => {
-    shared.cookies.set(RECOVERY_MARKER_COOKIE, "");
-    const supabase = fakeSupabase({ sessionId: "" });
+  it.each([
+    ["a made-up value", () => "forged"],
+    ["the bare session id, as an unsigned marker would be", () => SESSION_ID],
+    ["an empty value", () => ""],
+    ["a proof signed with another secret", () => proof({ secret: OTHER_SECRET })],
+    ["a proof issued for another user", () => proof({ userId: "user-2" })],
+    ["a proof issued for another session", () => proof({ sessionId: "session-2" })],
+    ["a proof that expired a minute ago", () => proof({ at: seconds() - 16 * 60 })],
+    [
+      "a proof whose expiry was pushed forward",
+      () => {
+        const [version, expiry, signature] = proof({ at: seconds() - 16 * 60 }).split(".");
+        return [version, Number(expiry) + 3600, signature].join(".");
+      },
+    ],
+    [
+      "a proof whose signature was altered",
+      () => {
+        const value = proof();
+        return value.slice(0, -1) + (value.endsWith("A") ? "B" : "A");
+      },
+    ],
+    ["a proof with its signature removed", () => proof().split(".").slice(0, 2).join(".")],
+    ["a proof with another version label", () => proof().replace(/^v1/, "v2")],
+  ] as Array<[string, () => string]>)("refuses %s", async (_label, forge) => {
+    shared.cookies.set(RECOVERY_MARKER_COOKIE, forge());
+    const supabase = fakeSupabase({ amr: [{ method: "otp", timestamp: seconds() - 30 }] });
+    shared.client = supabase;
+    const result = await updatePassword(IDLE, valid());
+    expect(result).toEqual({ status: "expired", message: PASSWORD_UPDATE_MESSAGES.expired });
+    expect(supabase.auth.getUser).toHaveBeenCalled();
+    expect(supabase.auth.updateUser).not.toHaveBeenCalled();
+    expect(supabase.auth.signOut).not.toHaveBeenCalled();
+    // A proof that did not hold is removed, not left for another try.
+    expect(shared.cookies.has(RECOVERY_MARKER_COOKIE)).toBe(false);
+  });
+
+  it.each([
+    ["missing", ""],
+    ["too short", "short-secret"],
+  ])("refuses every proof when the signing secret is %s", async (_label, secret) => {
+    vi.stubEnv("RECOVERY_PROOF_SECRET", secret);
+    // Even one that would verify if a short or empty secret were accepted.
+    if (secret) shared.cookies.set(RECOVERY_MARKER_COOKIE, proof({ secret }));
+    const supabase = fakeSupabase();
     shared.client = supabase;
     const result = await updatePassword(IDLE, valid());
     expect(result.status).toBe("expired");
     expect(supabase.auth.updateUser).not.toHaveBeenCalled();
   });
 
-  it("refuses a marked session whose sign-in method is not an emailed recovery", async () => {
+  it("never logs the proof, the session id or the signing secret", async () => {
+    const value = proof();
+    shared.cookies.set(RECOVERY_MARKER_COOKIE, value);
+    shared.client = fakeSupabase({ updateError: { code: "unexpected_failure", status: 500 } });
+    await updatePassword(IDLE, valid());
+    const logged = JSON.stringify(errorLog.mock.calls);
+    for (const secretValue of [value, SESSION_ID, SECRET])
+      expect(logged).not.toContain(secretValue);
+  });
+
+  it("refuses a valid proof on a session whose sign-in method is not an emailed recovery", async () => {
     for (const method of ["magiclink", "password", "oauth"]) {
       const supabase = fakeSupabase({ amr: [{ method, timestamp: seconds() - 30 }] });
       shared.client = supabase;
@@ -238,7 +305,7 @@ describe("updatePassword", () => {
     }
   });
 
-  it("accepts a marked session whose link was verified as a token hash", async () => {
+  it("accepts a valid proof on a session whose link was verified as a token hash", async () => {
     const supabase = fakeSupabase({ amr: [{ method: "otp", timestamp: seconds() - 30 }] });
     shared.client = supabase;
     await expect(updatePassword(IDLE, valid())).rejects.toThrow(
@@ -326,6 +393,13 @@ describe("logOut", () => {
     await expect(logOut()).rejects.toThrow("REDIRECT:/login");
     // Signing out everywhere is reserved for a password change.
     expect(supabase.auth.signOut).toHaveBeenCalledExactlyOnceWith({ scope: "local" });
+  });
+
+  it("removes a recovery proof left in the browser", async () => {
+    shared.client = fakeSupabase();
+    expect(shared.cookies.has(RECOVERY_MARKER_COOKIE)).toBe(true);
+    await expect(logOut()).rejects.toThrow("REDIRECT:/login");
+    expect(shared.cookies.has(RECOVERY_MARKER_COOKIE)).toBe(false);
   });
 
   it("still returns to the login page when Supabase is not connected", async () => {

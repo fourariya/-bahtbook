@@ -11,7 +11,6 @@ import {
   isRecoverySession,
   passwordUpdateFailure,
   postConfirmPath,
-  recoveryMarkerMatches,
   sendRecoveryEmail,
   startedByRecovery,
 } from "@/lib/auth/password-reset";
@@ -162,18 +161,6 @@ describe("isRecoverySession", () => {
     ]) {
       expect(isRecoverySession(amr, NOW)).toBe(false);
     }
-  });
-});
-
-describe("recoveryMarkerMatches", () => {
-  it("accepts only a marker that names the session making the request", () => {
-    expect(recoveryMarkerMatches("session-1", "session-1")).toBe(true);
-    expect(recoveryMarkerMatches("session-1", "session-2")).toBe(false);
-    expect(recoveryMarkerMatches(undefined, "session-1")).toBe(false);
-    expect(recoveryMarkerMatches("session-1", undefined)).toBe(false);
-    expect(recoveryMarkerMatches("", "")).toBe(false);
-    expect(recoveryMarkerMatches(undefined, undefined)).toBe(false);
-    expect(recoveryMarkerMatches(1, 1)).toBe(false);
   });
 });
 
