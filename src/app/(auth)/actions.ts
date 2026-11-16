@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import {
@@ -10,6 +9,7 @@ import {
   passwordUpdateFailure,
   sendRecoveryEmail,
 } from "@/lib/auth/password-reset";
+import { SIGNUP_CLOSED_MESSAGE, confirmRedirectUrl, isSignupEnabled } from "@/lib/auth/site";
 import {
   fieldErrorsOf,
   forgotPasswordSchema,
@@ -54,15 +54,6 @@ function authErrorMessage(code: string | undefined, status: number | undefined):
   }
 }
 
-async function siteOrigin(): Promise<string> {
-  const configured = process.env.SITE_URL?.trim().replace(/\/+$/, "");
-  if (configured) return configured;
-  const headerList = await headers();
-  const host = headerList.get("x-forwarded-host") ?? headerList.get("host") ?? "localhost:3000";
-  const protocol = headerList.get("x-forwarded-proto") ?? "http";
-  return `${protocol}://${host}`;
-}
-
 export async function logIn(_previous: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const email = String(formData.get("email") ?? "");
   const parsed = loginSchema.safeParse({ email, password: formData.get("password") });
@@ -91,6 +82,9 @@ export async function signUp(_previous: AuthFormState, formData: FormData): Prom
   const displayName = String(formData.get("displayName") ?? "");
   const values = { email, displayName };
 
+  // Registration is closed: refuse before anything reaches Supabase.
+  if (!isSignupEnabled()) return { status: "error", message: SIGNUP_CLOSED_MESSAGE, values };
+
   const parsed = signUpSchema.safeParse({
     displayName,
     email,
@@ -108,7 +102,8 @@ export async function signUp(_previous: AuthFormState, formData: FormData): Prom
     password: parsed.data.password,
     options: {
       data: { display_name: parsed.data.displayName },
-      emailRedirectTo: `${await siteOrigin()}/auth/confirm`,
+      // From SITE_URL only. Never from the request's Host header.
+      emailRedirectTo: confirmRedirectUrl(),
     },
   });
   if (error) {
@@ -137,22 +132,6 @@ export interface PasswordFormState {
   values?: { email?: string };
 }
 
-/**
- * The address the recovery link may return to. SITE_URL is used when it is
- * set. Without it, the request's own host is trusted only on a developer's
- * machine; anywhere else no address is sent and Supabase falls back to the
- * Site URL configured in the project, so a forged Host header can never end
- * up inside a recovery email.
- */
-async function recoveryRedirect(): Promise<string | undefined> {
-  const configured = process.env.SITE_URL?.trim().replace(/\/+$/, "");
-  if (configured) return `${configured}/auth/confirm`;
-  const origin = await siteOrigin();
-  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
-    ? `${origin}/auth/confirm`
-    : undefined;
-}
-
 /** Step 1 of password recovery: ask for the email. The answer never reveals whether an account exists. */
 export async function requestPasswordReset(
   _previous: PasswordFormState,
@@ -167,7 +146,7 @@ export async function requestPasswordReset(
   const supabase = await createClient();
   if (!supabase) return { status: "error", message: NOT_CONFIGURED, values: { email } };
 
-  await sendRecoveryEmail(supabase.auth, parsed.data.email, await recoveryRedirect(), (code) => {
+  await sendRecoveryEmail(supabase.auth, parsed.data.email, confirmRedirectUrl(), (code) => {
     // The code only. Never the address, so the log cannot be used to list accounts.
     console.error("[auth] recovery email request was not completed", { code });
   });

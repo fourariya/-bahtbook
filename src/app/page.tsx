@@ -1,8 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Amount, Swatch } from "@/components/ui/primitives";
 import { BrandMark } from "@/components/workspace/brand-mark";
 import { StatementSheet } from "@/components/workspace/statement-sheet";
+import { isSignupEnabled } from "@/lib/auth/site";
 import { BRAND } from "@/lib/brand";
 import { buildDemoCategories, buildDemoTransactions } from "@/lib/demo/data";
 import { summarize } from "@/lib/finance/aggregate";
@@ -17,6 +19,10 @@ import { sortTransactions } from "@/lib/finance/filter";
 
 // The sample statement is dated relative to today, so refresh it hourly.
 export const revalidate = 3600;
+
+// The landing page is public and may be indexed. Everything else is noindex
+// by default (see the root layout), except the demo.
+export const metadata: Metadata = { robots: { index: true, follow: true } };
 
 const FEATURES = [
   {
@@ -54,6 +60,7 @@ const STACK = [
 ];
 
 export default function LandingPage() {
+  const signupEnabled = isSignupEnabled();
   const today = todayInBangkok();
   const categories = buildDemoCategories();
   const transactions = buildDemoTransactions(today, categories);
@@ -78,9 +85,15 @@ export default function LandingPage() {
             <Link href="/login" className="nav-link">
               เข้าสู่ระบบ
             </Link>
-            <Link href="/signup" className="btn btn-card">
-              สมัครใช้งาน
-            </Link>
+            {signupEnabled ? (
+              <Link href="/signup" className="btn btn-card">
+                สมัครใช้งาน
+              </Link>
+            ) : (
+              <Link href="/demo" className="btn btn-card">
+                ลองใช้ตัวอย่าง
+              </Link>
+            )}
           </nav>
         </div>
       </header>
@@ -97,9 +110,11 @@ export default function LandingPage() {
                 <Link href="/demo" className="btn btn-ink btn-lg">
                   ลองใช้ตัวอย่าง
                 </Link>
-                <Link href="/signup" className="btn btn-card btn-lg">
-                  สมัครใช้งาน
-                </Link>
+                {signupEnabled ? (
+                  <Link href="/signup" className="btn btn-card btn-lg">
+                    สมัครใช้งาน
+                  </Link>
+                ) : null}
               </div>
               <p className="mt-4 text-sm text-muted">ตัวอย่างเปิดได้ทันที ไม่ต้องสมัครสมาชิก</p>
             </div>
@@ -207,16 +222,20 @@ export default function LandingPage() {
                 และหายไปเมื่อโหลดหน้าใหม่
               </p>
               <p className="mt-3 text-ink-2">
-                หากต้องการให้ข้อมูลถูกบันทึกจริง ให้สมัครบัญชี รายการของคุณจะเก็บในฐานข้อมูลและเห็นได้เฉพาะคุณ
+                {signupEnabled
+                  ? "หากต้องการให้ข้อมูลถูกบันทึกจริง ให้สมัครบัญชี รายการของคุณจะเก็บในฐานข้อมูลและเห็นได้เฉพาะคุณ"
+                  : "ในระบบจริง รายการของแต่ละบัญชีเก็บในฐานข้อมูลและเห็นได้เฉพาะเจ้าของบัญชี ขณะนี้ยังไม่เปิดรับสมัครสมาชิกใหม่"}
               </p>
             </div>
             <div className="flex flex-wrap content-center gap-3 lg:justify-end">
               <Link href="/demo" className="btn btn-card btn-lg">
                 เปิดโหมดตัวอย่าง
               </Link>
-              <Link href="/signup" className="btn btn-card btn-lg">
-                สมัครใช้งาน
-              </Link>
+              {signupEnabled ? (
+                <Link href="/signup" className="btn btn-card btn-lg">
+                  สมัครใช้งาน
+                </Link>
+              ) : null}
             </div>
           </div>
         </section>
@@ -235,9 +254,11 @@ export default function LandingPage() {
             <Link href="/login" className="text-link hit-area">
               เข้าสู่ระบบ
             </Link>
-            <Link href="/signup" className="text-link hit-area">
-              สมัครใช้งาน
-            </Link>
+            {signupEnabled ? (
+              <Link href="/signup" className="text-link hit-area">
+                สมัครใช้งาน
+              </Link>
+            ) : null}
           </nav>
         </div>
       </footer>

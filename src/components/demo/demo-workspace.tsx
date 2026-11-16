@@ -11,11 +11,19 @@ interface DemoWorkspaceProps {
   today: string;
   displayName: string;
   initial: DemoState;
+  /** Whether to offer registration from the demo banner. */
+  signupEnabled: boolean;
   children: ReactNode;
 }
 
 /** The public demo: the real screens, backed by an in-tab store instead of the database. */
-export function DemoWorkspace({ today, displayName, initial, children }: DemoWorkspaceProps) {
+export function DemoWorkspace({
+  today,
+  displayName,
+  initial,
+  signupEnabled,
+  children,
+}: DemoWorkspaceProps) {
   const [store] = useState(() => createDemoStore(initial));
   const state = useSyncExternalStore(store.subscribe, store.getState, () => initial);
 
@@ -47,6 +55,7 @@ export function DemoWorkspace({ today, displayName, initial, children }: DemoWor
           <DemoBanner
             isEmpty={state.transactions.length === 0}
             isSample={isSample}
+            signupEnabled={signupEnabled}
             onStartEmpty={() => store.replace({ categories: initial.categories, transactions: [] })}
             onRestore={() => store.replace(initial)}
           />
@@ -61,6 +70,7 @@ export function DemoWorkspace({ today, displayName, initial, children }: DemoWor
 interface DemoBannerProps {
   isEmpty: boolean;
   isSample: boolean;
+  signupEnabled: boolean;
   onStartEmpty: () => void;
   onRestore: () => void;
 }
@@ -70,7 +80,13 @@ interface DemoBannerProps {
  * switch between the filled sample workspace and an empty one, which is what a
  * newly registered account looks like.
  */
-function DemoBanner({ isEmpty, isSample, onStartEmpty, onRestore }: DemoBannerProps) {
+export function DemoBanner({
+  isEmpty,
+  isSample,
+  signupEnabled,
+  onStartEmpty,
+  onRestore,
+}: DemoBannerProps) {
   const linkClass =
     "inline-flex min-h-11 items-center border-0 bg-transparent p-0 font-medium whitespace-nowrap text-board-type underline decoration-board-muted underline-offset-4";
 
@@ -93,9 +109,11 @@ function DemoBanner({ isEmpty, isSample, onStartEmpty, onRestore }: DemoBannerPr
               เริ่มจากบัญชีว่าง
             </button>
           ) : null}
-          <Link href="/signup" className={linkClass}>
-            สมัครเพื่อใช้งานจริง
-          </Link>
+          {signupEnabled ? (
+            <Link href="/signup" className={linkClass}>
+              สมัครเพื่อใช้งานจริง
+            </Link>
+          ) : null}
         </div>
       </div>
     </div>

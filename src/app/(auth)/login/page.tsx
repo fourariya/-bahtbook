@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AuthForm } from "@/components/auth/auth-form";
+import { SIGNUP_CLOSED_MESSAGE, isSignupEnabled } from "@/lib/auth/site";
 import { safeNextPath } from "@/lib/finance/validation";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
@@ -34,16 +35,25 @@ export default async function LoginPage({
         next={typeof next === "string" ? safeNextPath(next) : undefined}
         configured={isSupabaseConfigured()}
       />
-      <p className="mt-6 text-sm text-muted">
-        ยังไม่มีบัญชีใช่ไหม{" "}
-        <Link href="/signup" className="text-link">
-          สมัครใช้งาน
-        </Link>{" "}
-        หรือ{" "}
-        <Link href="/demo" className="text-link">
-          ลองใช้ตัวอย่างโดยไม่ต้องสมัคร
-        </Link>
-      </p>
+      {isSignupEnabled() ? (
+        <p className="mt-6 text-sm text-muted">
+          ยังไม่มีบัญชีใช่ไหม{" "}
+          <Link href="/signup" className="text-link">
+            สมัครใช้งาน
+          </Link>{" "}
+          หรือ{" "}
+          <Link href="/demo" className="text-link">
+            ลองใช้ตัวอย่างโดยไม่ต้องสมัคร
+          </Link>
+        </p>
+      ) : (
+        <p className="mt-6 text-sm text-muted">
+          {SIGNUP_CLOSED_MESSAGE}{" "}
+          <Link href="/demo" className="text-link">
+            ลองใช้ตัวอย่างได้ทันที
+          </Link>
+        </p>
+      )}
     </>
   );
 }

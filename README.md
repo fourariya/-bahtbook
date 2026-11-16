@@ -194,9 +194,12 @@ The migration is repeatable: it can be run again without errors or duplicates.
 4. After the change every session of the account is ended, on every device,
    and the user logs in with the new password.
 
-The return address in the email comes from `SITE_URL`. A request's Host header
-is never placed in a recovery link outside local development. Redirects after
-verification are fixed paths chosen by the server, not taken from the URL.
+The return address in sign-up and recovery emails comes from `SITE_URL` and
+from nowhere else. It must be a plain origin: `https://host`, or `http://` for
+localhost only, with no path. If it is missing or invalid no address is sent
+and Supabase uses the Site URL configured in the project. A request's Host
+header is never used. Redirects after verification are fixed paths chosen by
+the server, not taken from the URL.
 
 **Row Level Security**
 
@@ -240,6 +243,7 @@ end-to-end tests.
    SUPABASE_PUBLISHABLE_KEY=    # sb_publishable_... or the legacy anon key
    SITE_URL=http://localhost:3000
    RECOVERY_PROOF_SECRET=       # at least 32 random characters, server only
+   SIGNUP_ENABLED=              # "false" closes registration; empty keeps it open
    ```
 
    Never put the Supabase secret or service-role key here. Nothing in this
@@ -309,7 +313,7 @@ test project connected:
 | `npx prettier --check .` | Pass                            |
 | `npx eslint .`           | Pass                            |
 | `npx tsc --noEmit`       | Pass                            |
-| `npx vitest run`         | 288 passed                      |
+| `npx vitest run`         | 324 passed                      |
 | `npm run build`          | Pass                            |
 | `npx playwright test`    | 115 passed, 2 skipped, 0 failed |
 
@@ -442,20 +446,141 @@ Known limits of this demonstration:
 
 ## Deployment
 
-Nothing has been deployed. To deploy (for example on Vercel):
+Nothing has been deployed yet. This is the checklist for a first public
+launch that is **demo-first**: visitors use `/demo`, registration is closed,
+and real accounts exist only for controlled testing. The intended host is
+Netlify (free plan, `*.netlify.app` address); any host that runs Next.js on
+Node.js works the same way.
 
-1. Create the production Supabase project and run the migration.
-2. Set `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SITE_URL` (the public
-   `https://` address) and a newly generated `RECOVERY_PROOF_SECRET` in the
-   host's environment settings. Do not add any Supabase secret key.
-3. In Supabase Auth set the Site URL and add
-   `https://<your-domain>/auth/confirm` to the Redirect URLs.
-4. Turn "Confirm email" on and configure custom SMTP before sharing the link
-   publicly.
-5. Build with `npm run build`. The app needs a Node.js runtime (it is not a
-   static export).
-6. After deploying, sign up with a test address, add and delete one
-   transaction, and confirm that a second account cannot see it.
+### What is and is not verified about Netlify
+
+Checked against Netlify's and OpenNext's documentation on 17 November 2026:
+
+- Netlify runs Next.js through its OpenNext adapter (`@netlify/plugin-nextjs`
+  v5), with no configuration file needed. It states support for every Next.js
+  version from 13.5 up to the latest stable, and lists the App Router, SSR,
+  Server Actions, Route Handlers and Middleware as fully supported. Suggested
+  build command `next build`, publish directory `.next`.
+- Environment variables set in the Netlify UI are available to server code.
+  Limiting a variable to certain scopes is a paid feature; on the free plan
+  each variable applies to builds and functions alike.
+- Stated limits: Netlify applies its own headers and redirects after
+  middleware, and Node.js middleware cannot use native add-ons or the
+  filesystem. This project's `proxy.ts` uses neither.
+
+**Not confirmed by any documentation read:** Next.js 16.4 by name, the
+`proxy.ts` file convention of Next.js 16 by name (Netlify documents
+"Middleware" and runs it through an edge function), cookies set from
+`proxy.ts`, a Route Handler that redirects and sets a cookie in one response,
+whether the headers from `next.config.ts` (including the Content Security
+Policy) are applied, and whether commercial use is allowed on the free plan.
+Passing tests on a local machine do not settle these. The smoke test below is
+what does, and every item in it must pass on the deployed site before the link
+is shared.
+
+### 1. Publish the repository (GitHub)
+
+1. Create an empty repository. Public is fine: the history holds no secrets.
+   The code stays `UNLICENSED`, so it can be read but not reused.
+2. Add it as a remote and push `main`.
+
+### 2. Create the production database (Supabase)
+
+1. Create a new project, separate from any test project. Do not copy users or
+   data from a test project.
+2. Run `supabase/migrations/20261115000000_init.sql` in the SQL Editor.
+3. Create two throwaway users (step 5) and run
+   `supabase/tests/rls_isolation_check.sql` with their addresses to confirm
+   Row Level Security.
+
+### 3. Configure Supabase Auth
+
+| Setting                           | Value                                                                   |
+| --------------------------------- | ----------------------------------------------------------------------- |
+| URL Configuration → Site URL      | `https://<site>.netlify.app`                                            |
+| URL Configuration → Redirect URLs | `https://<site>.netlify.app/auth/confirm` only                          |
+| Allow new users to sign up        | **Off** for the demo-first launch                                       |
+| Confirm email                     | On                                                                      |
+| Minimum password length           | 8                                                                       |
+| Secure password change            | On                                                                      |
+| Email Templates → Confirm signup  | `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email`    |
+| Email Templates → Reset password  | `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery` |
+
+Turning sign-ups off in Supabase is what closes registration. `SIGNUP_ENABLED`
+below only keeps the site from offering something the server would refuse.
+
+### 4. Deploy (Netlify)
+
+1. Import the repository. Accept the detected Next.js settings.
+2. Set the Node.js version to 22 or 24 (`NODE_VERSION`), matching
+   `engines` in `package.json`.
+3. Set these environment variables for the **Production** context only, so
+   that deploy previews never reach the production database:
+
+   | Variable                   | Value                                                                      |
+   | -------------------------- | -------------------------------------------------------------------------- |
+   | `SUPABASE_URL`             | the production project URL                                                 |
+   | `SUPABASE_PUBLISHABLE_KEY` | its publishable key, never the secret key                                  |
+   | `SITE_URL`                 | `https://<site>.netlify.app`, no trailing path                             |
+   | `RECOVERY_PROOF_SECRET`    | a newly generated value, marked as secret, not the one used in development |
+   | `SIGNUP_ENABLED`           | `false`                                                                    |
+
+4. Deploy. `SITE_URL` and `SIGNUP_ENABLED` are read when the site is built,
+   so redeploy after changing either.
+
+### 5. Controlled sign-in testing while registration is closed
+
+Create test accounts by hand in Supabase: Authentication → Users → Add user,
+with the email marked as confirmed. Use addresses you can read and passwords
+that are used nowhere else. Supabase's built-in email sender is meant for
+testing only: it is limited to a few messages per hour and may deliver only to
+members of the project's organisation, so use such an address for the
+recovery test. Delete the test users when finished.
+
+### 6. Smoke test on the deployed site
+
+Every item must pass. An item that fails on Netlify but passes locally is a
+hosting incompatibility, not a flaky test.
+
+1. `/` and `/demo` load on a phone and on a desktop. Neither offers sign-up.
+2. `/signup` says registration is closed and shows no form.
+3. In the demo, add, edit and delete a transaction, and export a CSV.
+4. `/app` while signed out redirects to `/login` (this is `proxy.ts`).
+5. Log in with a test user. `/app` opens and stays open after a reload
+   (session cookies). Add, edit and delete a transaction.
+6. Log in as the second test user in another browser. The first user's data
+   is not visible.
+7. Password recovery: request a link, open it, see the two password fields,
+   set a new password, log in with it. Open the same link again: it is
+   refused (the route handler sets cookies and redirects; the signed proof).
+8. Log out. `/app` redirects to `/login` again.
+9. Response headers on any page include `Content-Security-Policy` and
+   `X-Frame-Options: DENY`, and the session cookie is `Secure; HttpOnly`.
+10. View source: `/` and `/demo` carry `index, follow`; `/login` and `/app`
+    carry `noindex`.
+
+### Before opening registration to the public
+
+Registration stays closed until all of these are done:
+
+1. **Custom SMTP** is configured in Supabase with a verified sender domain.
+   The built-in sender cannot serve public sign-ups.
+2. Sign-up and the confirmation email are tested end to end on the deployed
+   site with a real inbox.
+3. Abuse controls are decided: Supabase's rate limits reviewed, and CAPTCHA
+   considered (not implemented in this project).
+4. Then turn "Allow new users to sign up" on in Supabase, set
+   `SIGNUP_ENABLED` to empty, and redeploy.
+
+### Things to know
+
+- A free Supabase project is paused after a period without activity. The demo
+  keeps working, because it does not use the database, but logging in does
+  not until the project is resumed.
+- Only `/` and the demo pages may be indexed by search engines. Login,
+  sign-up, recovery and the workspace are `noindex`.
+- The Supabase Auth limits described under "Authentication and Row Level
+  Security" apply to the public site as well.
 
 ## Security
 

@@ -174,8 +174,17 @@ describe("requestPasswordReset", () => {
     expect(supabase.auth.resetPasswordForEmail).toHaveBeenCalledExactlyOnceWith(EMAIL, undefined);
   });
 
-  it("uses the local address during development when SITE_URL is not set", async () => {
+  it("sends no return address when SITE_URL is not set, even for a local Host header", async () => {
     vi.stubEnv("SITE_URL", "");
+    const supabase = fakeSupabase();
+    shared.client = supabase;
+    await requestPasswordReset(IDLE, form({ email: EMAIL }));
+    // The Host header (localhost:3000 here) is never used, whatever it says.
+    expect(supabase.auth.resetPasswordForEmail).toHaveBeenCalledExactlyOnceWith(EMAIL, undefined);
+  });
+
+  it("accepts http only for a local SITE_URL", async () => {
+    vi.stubEnv("SITE_URL", "http://localhost:3000/");
     const supabase = fakeSupabase();
     shared.client = supabase;
     await requestPasswordReset(IDLE, form({ email: EMAIL }));
