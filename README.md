@@ -29,7 +29,7 @@ commercial service.
 
 | Area         | What it does                                                                                                                                                                                         |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Accounts     | Sign up, log in, log out, persistent session, protected routes (Supabase Auth)                                                                                                                       |
+| Accounts     | Sign up, log in, log out, password recovery by email, persistent session, protected routes (Supabase Auth)                                                                                           |
 | Dashboard    | Net result, total income, total expenses and transaction count for a chosen period; income vs. expenses for the last six months; expense breakdown by category; recent transactions; monthly summary |
 | Transactions | Add, edit and delete, with category, date, description and type; validation on the client and again on the server; delete confirmation; protection against double submission                         |
 | History      | Search, filter by type, category and date range, sort by date or amount; table on desktop, stacked rows on a phone; the view is kept in the URL                                                      |
@@ -83,7 +83,7 @@ Browser ──HTTPS──▶ Next.js server ──HTTPS + user's JWT──▶ Su
 src/
   app/
     page.tsx                 landing page
-    (auth)/                  login, sign-up and their Server Actions
+    (auth)/                  login, sign-up, forgot and reset password, and their Server Actions
     auth/confirm/route.ts    email confirmation link
     app/                     signed-in workspace: layout loads data, actions.ts writes
     demo/                    public sample workspace
@@ -93,7 +93,8 @@ src/
     demo/                    demo provider and banner
   lib/
     finance/                 pure domain logic
-    supabase/                server client, queries, env checks, table types
+    auth/                    password recovery rules (no framework dependencies)
+    supabase/                server client, queries, recovery session check, env checks, table types
     demo/                    sample data and in-memory store
   proxy.ts                   session refresh and the /app redirect
 supabase/migrations/         SQL schema, constraints, triggers and RLS policies
@@ -159,6 +160,36 @@ The migration is repeatable: it can be run again without errors or duplicates.
 - Sign-up always answers "check your email" when confirmation is on, so the
   form cannot be used to discover which addresses are registered.
 - The post-login `next` address is restricted to paths inside `/app`.
+- Logging out ends the session in that browser only.
+
+**Password recovery**
+
+1. `/forgot-password` asks Supabase to email a recovery link
+   (`resetPasswordForEmail`). The page gives the same answer whether or not
+   the address has an account, and only an error code is logged, never the
+   address. The confirmation offers to send the request again after a
+   60-second countdown in the browser. That countdown only discourages
+   repeated clicks; the limit that counts is Supabase's own, and a request it
+   refuses gets the same answer.
+2. The link opens `/auth/confirm`, which verifies it (`verifyOtp` for a
+   `token_hash` link, or the PKCE code exchange) and starts a session. A link
+   works once; an invalid, expired or reused link starts no session.
+3. `/reset-password` accepts the new password. Both the page and its Server
+   Action require two things. First, a session that the verified token says
+   was started by an emailed link within the last 15 minutes (the `amr`
+   claim, method `recovery` or `otp`). Second, an httpOnly marker cookie that
+   `/auth/confirm` sets only after it has itself verified a recovery link,
+   holding the id of the session that link started. The second check is
+   needed because Supabase records the same `otp` method for every
+   `token_hash` link: recovery, magic link, email code and sign-up
+   confirmation. An ordinary logged-in session, or a session from one of
+   those other links, cannot set a password there.
+4. After the change every session of the account is ended, on every device,
+   and the user logs in with the new password.
+
+The return address in the email comes from `SITE_URL`. A request's Host header
+is never placed in a recovery link outside local development. Redirects after
+verification are fixed paths chosen by the server, not taken from the URL.
 
 **Row Level Security**
 
@@ -215,6 +246,7 @@ end-to-end tests.
    | Email provider → Confirm email                 | On for a public site. Off is convenient for local development: sign-up then logs in immediately |
    | Email provider → Minimum password length       | 8, to match the form                                                                            |
    | Email Templates → Confirm signup (recommended) | Set the link to `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email`            |
+   | Email Templates → Reset password (recommended) | Set the link to `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery`         |
 
    The default email template also works (the route handles both link styles),
    but then the link must be opened in the same browser that signed up. With
@@ -244,39 +276,71 @@ end-to-end tests.
 
 ## Testing
 
-| Layer                                                              | What it proves                                                                                                                                                                                                                                            | Needs Supabase |
-| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| Unit, `tests/unit`                                                 | Money parsing and formatting, Bangkok dates and periods, totals, monthly and category aggregation, filtering, sorting, URL state, validation, CSV escaping, the redirect guard, the demo store                                                            | No             |
-| Integration, `tests/integration`                                   | The real migration file run on PGlite (PostgreSQL compiled to WebAssembly): constraints, the composite foreign key, triggers, and Row Level Security for owner, other user and signed-out visitor, plus the manual RLS check script                       | No             |
-| End to end, `e2e/demo-workspace.spec.ts`, `e2e/auth-guard.spec.ts` | The three user journeys, validation, double submission, filters, sorting, CSV download, categories, charts, navigation and overflow at 1440px, 768px and 375px, route protection, auth form validation, security headers                                  | No             |
-| End to end, `e2e/isolation-live.spec.ts`                           | Direct Supabase REST calls with no application code in between: no session is refused on every table, a user receives only their own rows, ownership cannot be forged, and a second account cannot read, update, delete or reuse the first account's data | **Yes**        |
-| End to end, `e2e/auth-live.spec.ts`                                | Real login, a transaction created, edited and deleted in PostgreSQL and re-read after reload, logout                                                                                                                                                      | **Yes**        |
+| Layer                                                              | What it proves                                                                                                                                                                                                                                                                 | Needs Supabase |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
+| Unit, `tests/unit`                                                 | Money parsing and formatting, Bangkok dates and periods, totals, monthly and category aggregation, filtering, sorting, URL state, validation, CSV escaping, the redirect guard, the demo store, password recovery rules and both recovery Server Actions with a faked Supabase | No             |
+| Integration, `tests/integration`                                   | The real migration file run on PGlite (PostgreSQL compiled to WebAssembly): constraints, the composite foreign key, triggers, and Row Level Security for owner, other user and signed-out visitor, plus the manual RLS check script                                            | No             |
+| End to end, `e2e/demo-workspace.spec.ts`, `e2e/auth-guard.spec.ts` | The three user journeys, validation, double submission, filters, sorting, CSV download, categories, charts, navigation and overflow at 1440px, 768px and 375px, route protection, auth form validation, security headers                                                       | No             |
+| End to end, `e2e/isolation-live.spec.ts`                           | Direct Supabase REST calls with no application code in between: no session is refused on every table, a user receives only their own rows, ownership cannot be forged, and a second account cannot read, update, delete or reuse the first account's data                      | **Yes**        |
+| End to end, `e2e/auth-live.spec.ts`                                | Real login, a transaction created, edited and deleted in PostgreSQL and re-read after reload, logout                                                                                                                                                                           | **Yes**        |
 
-**Results on 15 November 2026** (Windows 11, Node 24), with a dedicated Supabase
+**Results on 16 November 2026** (Windows 11, Node 24), with a dedicated Supabase
 test project connected:
 
-| Check                    | Result                         |
-| ------------------------ | ------------------------------ |
-| `npx prettier --check .` | Pass                           |
-| `npx eslint .`           | Pass                           |
-| `npx tsc --noEmit`       | Pass                           |
-| `npx vitest run`         | 134 passed                     |
-| `npx playwright test`    | 85 passed, 2 skipped, 0 failed |
+| Check                    | Result                          |
+| ------------------------ | ------------------------------- |
+| `npx prettier --check .` | Pass                            |
+| `npx eslint .`           | Pass                            |
+| `npx tsc --noEmit`       | Pass                            |
+| `npx vitest run`         | 259 passed                      |
+| `npm run build`          | Pass                            |
+| `npx playwright test`    | 115 passed, 2 skipped, 0 failed |
 
 The Playwright run includes real login and a transaction created, edited and
-deleted in PostgreSQL (4 tests), and direct calls to the Supabase REST API
-showing that a request without a session is refused on every table and that a
-signed-in user receives only their own rows (2 tests).
+deleted in PostgreSQL, direct calls to the Supabase REST API proving isolation
+between two accounts, and the password recovery pages. The 2 skipped tests are
+keyboard tests that are deliberately run on desktop only.
 
-The 2 skipped tests are a keyboard test that is deliberately run on desktop
-only, and the two-account API isolation test, which needs a second test user
-(`E2E_USER2_EMAIL`, `E2E_USER2_PASSWORD`).
+**Not verified by an automated test.** These need a real inbox, so they are
+manual (see below): the sign-up form end to end, the confirmation email link,
+and the complete password recovery from a real email to a changed password.
+The recovery logic itself is covered with a faked Supabase, and the live tests
+confirm that an ordinary session cannot open the reset form and that the
+session token carries the `amr` and `session_id` claims the page relies on.
+That Supabase marks a recovery session with one of the accepted methods
+(`recovery` for a code link, `otp` for a `token_hash` link) is taken from the
+source of its Auth server and is confirmed only by the manual test.
 
-**Not verified by an automated test:** the sign-up form end to end, and the
-confirmation email link (`/auth/confirm` with a real token). The signed-in
-tests log in with a user created in the dashboard. Check both by hand before
-going live. Without the Supabase settings, the signed-in and API tests are
-skipped and the suite reports 79 passed and 8 skipped.
+**Limits of the reset-page check.** It governs this application's own pages
+and Server Actions. Supabase's API will change the password of any signed-in
+session that calls it directly, so for a stronger guarantee also review the
+password settings of the Email provider in the Supabase project ("Secure
+password change", and requiring the current password when updating, if the
+project offers it). A recovery link and a magic link both prove control of the
+mailbox, and Supabase verifies them through the same mechanism, so someone
+who can read the account's email can always recover the account; that is
+what recovery by email means.
+
+**Manual test of password recovery** (test project, an inbox you can read):
+
+1. Create a user whose email is a real inbox of yours, or sign up through the
+   site with it.
+2. Open `/forgot-password`, enter that address, and check that the recovery
+   email arrives.
+3. Open the link. You should land on `/reset-password` with the two password
+   fields. Try a mismatch and a 7-character password; both must be refused.
+4. Set a new password. You should land on `/login` with a confirmation, the
+   old password must no longer work and the new one must.
+5. Open the same link again. You should land on `/forgot-password` with the
+   message that the link is no longer valid.
+6. Repeat step 2, wait more than 15 minutes after opening the link, then try
+   to save: the page must ask for a new link.
+7. Run steps 2 to 4 once with the recommended email template and once with
+   Supabase's default template (in the same browser), since they use
+   different link styles.
+
+Without the Supabase settings, the tests that need them are skipped and
+reported as skipped.
 
 **Running the signed-in tests safely.** They create and delete rows, so they
 run only when all of the following are set in `.env.local`:
@@ -296,8 +360,7 @@ User" ticked, and do it **after** applying the migration: the profile and the
 default categories are created by a trigger at the moment the user is created.
 
 Then run `npm run test:e2e`. With the settings in place the expected result is
-86 passed and 1 skipped with both test users set, or 85 passed and 2 skipped
-with one. The tests only touch rows they created under that one
+115 passed and 2 skipped with both test users set. The tests only touch rows they created under that one
 account. Playwright never attaches to a server that is already running: if port
 3100 is taken, the run stops instead of testing an unknown application.
 
@@ -346,7 +409,7 @@ Known limits of this demonstration:
   20,000) and aggregates them in the application. That suits the freelancer
   volumes this is designed for; a larger deployment should move aggregation
   into SQL views and paginate the history on the server.
-- There is no password reset, profile editing, multi-currency, receipt upload
+- There is no profile editing, multi-currency, receipt upload
   or recurring transactions.
 - The interface is Thai only.
 - `robots` is set to `noindex`.

@@ -5,6 +5,7 @@ import { useActionState, useState, type FormEvent } from "react";
 
 import { logIn, signUp, type AuthFormState } from "@/app/(auth)/actions";
 import { Field, Spinner } from "@/components/ui/primitives";
+import { FORGOT_PASSWORD_PATH } from "@/lib/auth/password-reset";
 import {
   DISPLAY_NAME_MAX,
   PASSWORD_MAX,
@@ -130,6 +131,14 @@ export function AuthForm({ mode, next, configured }: AuthFormProps) {
           aria-describedby="password-help"
         />
       </Field>
+
+      {isLogin ? (
+        <p className="text-right text-sm">
+          <Link href={FORGOT_PASSWORD_PATH} className="text-link hit-area">
+            ลืมรหัสผ่าน?
+          </Link>
+        </p>
+      ) : null}
 
       <p role="alert" className="min-h-[1lh] text-sm text-error">
         {clientErrors ? null : state.message}

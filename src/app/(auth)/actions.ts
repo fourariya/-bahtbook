@@ -4,7 +4,21 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { fieldErrorsOf, loginSchema, safeNextPath, signUpSchema } from "@/lib/finance/validation";
+import {
+  PASSWORD_UPDATE_MESSAGES,
+  RECOVERY_REQUESTED_MESSAGE,
+  passwordUpdateFailure,
+  sendRecoveryEmail,
+} from "@/lib/auth/password-reset";
+import {
+  fieldErrorsOf,
+  forgotPasswordSchema,
+  loginSchema,
+  resetPasswordSchema,
+  safeNextPath,
+  signUpSchema,
+} from "@/lib/finance/validation";
+import { clearRecoveryMarker, hasRecoverySession } from "@/lib/supabase/recovery";
 import { createClient } from "@/lib/supabase/server";
 
 export interface AuthFormState {
@@ -115,9 +129,99 @@ export async function signUp(_previous: AuthFormState, formData: FormData): Prom
   };
 }
 
+export interface PasswordFormState {
+  status: "idle" | "error" | "sent" | "expired";
+  message?: string;
+  fieldErrors?: Record<string, string>;
+  /** Echoed back so the form keeps what was typed. Never includes a password. */
+  values?: { email?: string };
+}
+
+/**
+ * The address the recovery link may return to. SITE_URL is used when it is
+ * set. Without it, the request's own host is trusted only on a developer's
+ * machine; anywhere else no address is sent and Supabase falls back to the
+ * Site URL configured in the project, so a forged Host header can never end
+ * up inside a recovery email.
+ */
+async function recoveryRedirect(): Promise<string | undefined> {
+  const configured = process.env.SITE_URL?.trim().replace(/\/+$/, "");
+  if (configured) return `${configured}/auth/confirm`;
+  const origin = await siteOrigin();
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+    ? `${origin}/auth/confirm`
+    : undefined;
+}
+
+/** Step 1 of password recovery: ask for the email. The answer never reveals whether an account exists. */
+export async function requestPasswordReset(
+  _previous: PasswordFormState,
+  formData: FormData,
+): Promise<PasswordFormState> {
+  const email = String(formData.get("email") ?? "");
+  const parsed = forgotPasswordSchema.safeParse({ email });
+  if (!parsed.success) {
+    return { status: "error", fieldErrors: fieldErrorsOf(parsed.error), values: { email } };
+  }
+
+  const supabase = await createClient();
+  if (!supabase) return { status: "error", message: NOT_CONFIGURED, values: { email } };
+
+  await sendRecoveryEmail(supabase.auth, parsed.data.email, await recoveryRedirect(), (code) => {
+    // The code only. Never the address, so the log cannot be used to list accounts.
+    console.error("[auth] recovery email request was not completed", { code });
+  });
+
+  return { status: "sent", message: RECOVERY_REQUESTED_MESSAGE };
+}
+
+/**
+ * Step 3 of password recovery: set the new password. Allowed only for a
+ * session started by the emailed link a few minutes ago. Afterwards every
+ * session of the account is ended and the user logs in with the new password.
+ */
+export async function updatePassword(
+  _previous: PasswordFormState,
+  formData: FormData,
+): Promise<PasswordFormState> {
+  const parsed = resetPasswordSchema.safeParse({
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+  if (!parsed.success) return { status: "error", fieldErrors: fieldErrorsOf(parsed.error) };
+
+  const supabase = await createClient();
+  if (!supabase) return { status: "error", message: NOT_CONFIGURED };
+
+  if (!(await hasRecoverySession(supabase))) {
+    return { status: "expired", message: PASSWORD_UPDATE_MESSAGES.expired };
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+  if (error) {
+    const reason = passwordUpdateFailure(error);
+    console.error("[auth] password update failed", { code: error.code ?? "unknown" });
+    if (reason === "expired")
+      return { status: "expired", message: PASSWORD_UPDATE_MESSAGES.expired };
+    return reason === "same" || reason === "weak"
+      ? { status: "error", fieldErrors: { password: PASSWORD_UPDATE_MESSAGES[reason] } }
+      : { status: "error", message: PASSWORD_UPDATE_MESSAGES[reason] };
+  }
+
+  // Ends this recovery session and any other session, on every device.
+  await supabase.auth.signOut({ scope: "global" });
+  await clearRecoveryMarker();
+  revalidatePath("/", "layout");
+  redirect("/login?notice=password-updated");
+}
+
+/**
+ * Ends the session in this browser only. Other devices stay signed in; ending
+ * every session is reserved for a password change (see updatePassword).
+ */
 export async function logOut(): Promise<void> {
   const supabase = await createClient();
-  if (supabase) await supabase.auth.signOut();
+  if (supabase) await supabase.auth.signOut({ scope: "local" });
   revalidatePath("/", "layout");
   redirect("/login");
 }

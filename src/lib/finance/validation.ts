@@ -83,6 +83,12 @@ export const loginSchema = z.object({
   password: z.string({ error: "กรอกรหัสผ่าน" }).min(1, "กรอกรหัสผ่าน").max(PASSWORD_MAX),
 });
 
+/** The rule for a password someone is choosing (sign-up and password reset). */
+const newPasswordSchema = z
+  .string({ error: "กรอกรหัสผ่าน" })
+  .min(PASSWORD_MIN, `รหัสผ่านต้องยาวอย่างน้อย ${PASSWORD_MIN} ตัวอักษร`)
+  .max(PASSWORD_MAX, `รหัสผ่านยาวได้ไม่เกิน ${PASSWORD_MAX} ตัวอักษร`);
+
 export const signUpSchema = z.object({
   displayName: z
     .string({ error: "กรอกชื่อที่ใช้แสดง" })
@@ -90,11 +96,20 @@ export const signUpSchema = z.object({
     .min(1, "กรอกชื่อที่ใช้แสดง")
     .max(DISPLAY_NAME_MAX, `ชื่อยาวได้ไม่เกิน ${DISPLAY_NAME_MAX} ตัวอักษร`),
   email: emailSchema,
-  password: z
-    .string({ error: "กรอกรหัสผ่าน" })
-    .min(PASSWORD_MIN, `รหัสผ่านต้องยาวอย่างน้อย ${PASSWORD_MIN} ตัวอักษร`)
-    .max(PASSWORD_MAX, `รหัสผ่านยาวได้ไม่เกิน ${PASSWORD_MAX} ตัวอักษร`),
+  password: newPasswordSchema,
 });
+
+export const forgotPasswordSchema = z.object({ email: emailSchema });
+
+export const resetPasswordSchema = z
+  .object({
+    password: newPasswordSchema,
+    confirmPassword: z.string({ error: "กรอกรหัสผ่านอีกครั้ง" }).min(1, "กรอกรหัสผ่านอีกครั้ง"),
+  })
+  .refine((values) => values.password === values.confirmPassword, {
+    path: ["confirmPassword"],
+    error: "รหัสผ่านทั้งสองช่องไม่ตรงกัน",
+  });
 
 /** Flattens zod issues into one message per top-level field (first issue wins). */
 export function fieldErrorsOf(error: z.ZodError): Record<string, string> {

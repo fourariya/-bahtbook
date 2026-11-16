@@ -9,6 +9,7 @@ export const metadata: Metadata = { title: "เข้าสู่ระบบ" }
 
 const NOTICES: Record<string, string> = {
   "link-invalid": "ลิงก์ยืนยันใช้ไม่ได้หรือหมดอายุแล้ว ลองเข้าสู่ระบบ หรือสมัครใหม่เพื่อรับลิงก์อีกครั้ง",
+  "password-updated": "ตั้งรหัสผ่านใหม่เรียบร้อยแล้ว เข้าสู่ระบบด้วยรหัสผ่านใหม่ได้เลย",
 };
 
 export default async function LoginPage({

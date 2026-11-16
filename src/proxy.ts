@@ -70,5 +70,15 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/app/:path*", "/login", "/signup", "/auth/:path*"],
+  // The password recovery pages are matched so their session is refreshed too.
+  // They are not in AUTH_PAGES: a visitor who just opened a recovery link is
+  // signed in and must still be able to reach /reset-password.
+  matcher: [
+    "/app/:path*",
+    "/login",
+    "/signup",
+    "/forgot-password",
+    "/reset-password",
+    "/auth/:path*",
+  ],
 };
