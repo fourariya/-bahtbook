@@ -94,7 +94,14 @@ async function fillSampleTransaction(page) {
   await open(page, "/demo/transactions");
   shots.push(await page.screenshot({ type: "png" }));
 
-  await fillSampleTransaction(page);
+  const dialog = await fillSampleTransaction(page);
+  // Filling the last field scrolls the sheet. Show it from the top, as it first
+  // opens, and wait until the scroll and the repaint have settled.
+  await dialog.evaluate((element) => element.scrollTo(0, 0));
+  await page.waitForFunction(() => document.querySelector("dialog[open]")?.scrollTop === 0);
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
   shots.push(await page.screenshot({ type: "png" }));
   await context.close();
 

@@ -1,5 +1,5 @@
 import { ChevronDown } from "lucide-react";
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps, CSSProperties, ReactNode } from "react";
 
 import { formatBaht } from "@/lib/finance/money";
 import type { CategoryColor, TransactionType } from "@/lib/finance/types";
@@ -45,15 +45,22 @@ export function Amount({
   type,
   satang,
   className = "",
+  fit = false,
 }: {
   type: TransactionType;
   satang: number;
   className?: string;
+  /** Scale down, instead of overflowing, when too long for its list (a @container). */
+  fit?: boolean;
 }) {
   const signed = type === "income" ? satang : -satang;
+  const text = formatBaht(signed, { sign: "always" });
   return (
-    <span className={`fig ${type === "income" ? "text-success" : "text-ink"} ${className}`}>
-      {formatBaht(signed, { sign: "always" })}
+    <span
+      className={`fig ${fit ? "fit-amount" : ""} ${type === "income" ? "text-success" : "text-ink"} ${className}`}
+      style={fit ? ({ "--figure-chars": text.length } as CSSProperties) : undefined}
+    >
+      {text}
     </span>
   );
 }

@@ -162,9 +162,9 @@ export function TransactionsScreen() {
 
         <div
           id={`${ids}-filters`}
-          className={`mt-4 grid-cols-2 gap-x-3 gap-y-4 md:grid md:grid-cols-5 ${filtersOpen ? "grid" : "hidden"}`}
+          className={`mt-4 grid-cols-2 gap-x-3 gap-y-4 md:grid md:grid-cols-6 xl:grid-cols-5 ${filtersOpen ? "grid" : "hidden"}`}
         >
-          <div>
+          <div className="md:col-span-3 xl:col-span-1">
             <label htmlFor={`${ids}-type`} className="label">
               ประเภท
             </label>
@@ -180,7 +180,7 @@ export function TransactionsScreen() {
               <option value="expense">{TYPE_LABELS.expense}</option>
             </Select>
           </div>
-          <div>
+          <div className="md:col-span-3 xl:col-span-1">
             <label htmlFor={`${ids}-category`} className="label">
               หมวดหมู่
             </label>
@@ -203,7 +203,7 @@ export function TransactionsScreen() {
               ))}
             </Select>
           </div>
-          <div>
+          <div className="md:col-span-2 xl:col-span-1">
             <label htmlFor={`${ids}-from`} className="label">
               ตั้งแต่วันที่
             </label>
@@ -217,7 +217,7 @@ export function TransactionsScreen() {
               onChange={(event) => changeFilters({ from: event.target.value || null })}
             />
           </div>
-          <div>
+          <div className="md:col-span-2 xl:col-span-1">
             <label htmlFor={`${ids}-to`} className="label">
               ถึงวันที่
             </label>
@@ -231,7 +231,7 @@ export function TransactionsScreen() {
               onChange={(event) => changeFilters({ to: event.target.value || null })}
             />
           </div>
-          <div className="col-span-2 md:col-span-1">
+          <div className="col-span-2 xl:col-span-1">
             <label htmlFor={`${ids}-sort`} className="label">
               เรียงตาม
             </label>
@@ -432,7 +432,7 @@ function SortButton({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex min-h-9 items-center gap-1 rounded-input border-0 bg-transparent p-0 font-medium ${
+      className={`relative inline-flex min-h-9 items-center gap-1 rounded-input border-0 bg-transparent p-0 font-medium before:absolute before:-inset-x-2 before:-inset-y-1 before:content-[''] ${
         state === "none" ? "text-muted" : "text-ink"
       } ${alignEnd ? "flex-row-reverse" : ""}`}
     >

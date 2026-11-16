@@ -229,9 +229,15 @@ export default function LandingPage() {
             ชื่อและข้อมูลตัวอย่างทั้งหมดเป็นข้อมูลสมมติ
           </p>
           <nav aria-label="ลิงก์ท้ายหน้า" className="flex gap-5">
-            <Link href="/demo">ตัวอย่าง</Link>
-            <Link href="/login">เข้าสู่ระบบ</Link>
-            <Link href="/signup">สมัครใช้งาน</Link>
+            <Link href="/demo" className="text-link hit-area">
+              ตัวอย่าง
+            </Link>
+            <Link href="/login" className="text-link hit-area">
+              เข้าสู่ระบบ
+            </Link>
+            <Link href="/signup" className="text-link hit-area">
+              สมัครใช้งาน
+            </Link>
           </nav>
         </div>
       </footer>

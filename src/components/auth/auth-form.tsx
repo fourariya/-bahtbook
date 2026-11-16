@@ -54,7 +54,10 @@ export function AuthForm({ mode, next, configured }: AuthFormProps) {
         <p className="mt-2 text-sm text-ink-2">{state.message}</p>
         <p className="mt-4 text-sm text-muted">
           ไม่พบอีเมลใช่ไหม ลองดูในโฟลเดอร์สแปม หากเคยสมัครด้วยอีเมลนี้แล้ว ให้
-          <Link href="/login">เข้าสู่ระบบ</Link>แทน
+          <Link href="/login" className="text-link">
+            เข้าสู่ระบบ
+          </Link>
+          แทน
         </p>
       </div>
     );
@@ -67,7 +70,10 @@ export function AuthForm({ mode, next, configured }: AuthFormProps) {
       {!configured ? (
         <p className="mb-4 border-l-2 border-accent bg-paper-2 px-3 py-2 text-sm">
           ระบบสมาชิกยังไม่ได้เชื่อมต่อกับ Supabase ในเครื่องนี้ จึงยังสมัครหรือเข้าสู่ระบบไม่ได้ ดูขั้นตอนตั้งค่าใน README หรือ
-          <Link href="/demo">ลองใช้ตัวอย่าง</Link>ได้ทันที
+          <Link href="/demo" className="text-link">
+            ลองใช้ตัวอย่าง
+          </Link>
+          ได้ทันที
         </p>
       ) : null}
 

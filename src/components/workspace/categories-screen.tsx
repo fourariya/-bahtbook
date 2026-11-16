@@ -135,9 +135,14 @@ function AddCategoryForm() {
       <form
         onSubmit={handleSubmit}
         noValidate
-        className="mt-4 grid items-start gap-x-4 gap-y-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_auto]"
+        className="mt-4 grid items-start gap-x-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_auto]"
       >
-        <Field id={`${ids}-name`} label="ชื่อหมวดหมู่" error={error}>
+        <Field
+          id={`${ids}-name`}
+          label="ชื่อหมวดหมู่"
+          error={error}
+          className="md:col-span-3 lg:col-span-1"
+        >
           <input
             ref={nameRef}
             id={`${ids}-name`}
@@ -170,14 +175,16 @@ function AddCategoryForm() {
               </label>
             ))}
           </div>
+          <p className="helper" aria-hidden="true" />
         </fieldset>
         <div>
           <label htmlFor={`${ids}-color`} className="label">
             สี
           </label>
           <ColorSelect id={`${ids}-color`} value={color} onChange={setColor} />
+          <p className="helper" aria-hidden="true" />
         </div>
-        <div className="mt-4 md:mt-[calc(1.65*var(--text-sm)+6px)]">
+        <div className="md:mt-[calc(1.65*var(--text-sm)+var(--space-2xs))]">
           <button type="submit" className="btn btn-card w-full md:w-auto" disabled={pending}>
             {pending ? <Spinner /> : null}
             เพิ่มหมวดหมู่
@@ -245,7 +252,7 @@ function CategoryRow({ category, usageCount }: { category: Category; usageCount:
   if (view === "edit") {
     return (
       <li className="border-b border-rule py-3 last:border-b-0">
-        <form onSubmit={save} noValidate className="grid gap-x-3 gap-y-1 sm:grid-cols-2">
+        <form onSubmit={save} noValidate className="grid gap-x-3 sm:grid-cols-2">
           <Field id={`${ids}-name`} label="ชื่อหมวดหมู่" error={error}>
             <input
               id={`${ids}-name`}
@@ -266,6 +273,7 @@ function CategoryRow({ category, usageCount }: { category: Category; usageCount:
               สี
             </label>
             <ColorSelect id={`${ids}-color`} value={color} onChange={setColor} />
+            <p className="helper" aria-hidden="true" />
           </div>
           <div className="flex gap-2 sm:col-span-2 sm:justify-end">
             <button type="button" className="btn btn-quiet" onClick={() => setView("read")}>

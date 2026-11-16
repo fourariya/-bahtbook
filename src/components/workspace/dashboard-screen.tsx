@@ -75,7 +75,7 @@ export function DashboardScreen() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl">ภาพรวม</h1>
-          <p className="mt-1 text-sm text-muted">{displayName}</p>
+          <p className="mt-1 text-sm text-muted lg:hidden">{displayName}</p>
         </div>
         <div className="w-full sm:w-52">
           <label htmlFor={periodId} className="label">
@@ -160,21 +160,28 @@ export function DashboardScreen() {
                 <h2 id="dash-recent" className="text-lg">
                   รายการล่าสุด
                 </h2>
-                <Link href={`${basePath}/transactions`} className="text-sm">
+                <Link href={`${basePath}/transactions`} className="text-link hit-area text-sm">
                   ดูรายการทั้งหมด
                 </Link>
               </div>
-              <ul className="mt-3">
+              <ul className="@container mt-3">
                 {recent.map((transaction) => {
                   const category = categoryById.get(transaction.categoryId);
                   return (
                     <li
                       key={transaction.id}
-                      className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 border-b border-rule py-2.5 text-sm last:border-b-0"
+                      className="flex flex-wrap items-baseline gap-x-4 border-b border-rule py-2.5 text-sm last:border-b-0"
                     >
-                      <span className="truncate font-medium">{transaction.description}</span>
-                      <Amount type={transaction.type} satang={transaction.amountSatang} />
-                      <span className="col-span-2 flex items-baseline gap-2 text-muted">
+                      <span className="min-w-0 flex-[1_1_6rem] truncate font-medium">
+                        {transaction.description}
+                      </span>
+                      <Amount
+                        type={transaction.type}
+                        satang={transaction.amountSatang}
+                        className="ml-auto"
+                        fit
+                      />
+                      <span className="flex min-w-0 basis-full items-baseline gap-2 text-muted">
                         {formatThaiDate(transaction.date)}
                         {category ? (
                           <span className="flex min-w-0 items-baseline gap-1.5">

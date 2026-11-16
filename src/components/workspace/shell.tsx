@@ -42,7 +42,7 @@ export function Shell({ children, accountSlot, banner }: ShellProps) {
       {banner}
 
       <header className="sticky top-0 z-(--z-sticky-nav) border-b border-rule bg-paper">
-        <div className="shell flex h-16 items-center gap-2 md:gap-6">
+        <div className="shell @container flex h-16 items-center gap-2 md:gap-6">
           <Link
             href={basePath}
             aria-label={`${BRAND.name} หน้าภาพรวม`}
@@ -66,13 +66,22 @@ export function Shell({ children, accountSlot, banner }: ShellProps) {
           </nav>
 
           <div className="ml-auto flex items-center gap-2 md:gap-3">
-            <span className="hidden max-w-40 truncate text-sm text-muted lg:block">
+            <span
+              className="hidden max-w-72 truncate text-sm text-muted lg:block"
+              title={displayName}
+            >
               {displayName}
             </span>
             {accountSlot}
-            <button type="button" className="btn btn-ink" onClick={() => openTransactionForm()}>
+            <button
+              type="button"
+              className="btn btn-ink"
+              onClick={() => openTransactionForm()}
+              aria-label="เพิ่มรายการ"
+            >
               <Plus aria-hidden="true" className="size-4" />
-              เพิ่มรายการ
+              {/* When the bar is too narrow for the label (large text on a small phone), the icon stands alone. */}
+              <span className="hidden @[19.5rem]:inline">เพิ่มรายการ</span>
             </button>
           </div>
         </div>

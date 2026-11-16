@@ -117,7 +117,7 @@ function TransactionForm({
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} noValidate className="p-5 sm:p-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="dialog-head -mx-5 -mt-5 flex items-start justify-between gap-4 px-5 pt-5 pb-3 max-sm:border-b max-sm:border-rule sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 sm:pb-1">
         <h2 id={titleId} className="text-xl">
           {isEdit ? "แก้ไขรายการ" : "เพิ่มรายการ"}
         </h2>
@@ -148,9 +148,10 @@ function TransactionForm({
             </label>
           ))}
         </div>
+        <p className="helper" aria-hidden="true" />
       </fieldset>
 
-      <div className="mt-5 grid gap-x-4 gap-y-1 sm:grid-cols-2">
+      <div className="grid gap-x-4 sm:grid-cols-2">
         <Field
           id={`${formId}-amount`}
           label="จำนวนเงิน (บาท)"
@@ -195,7 +196,6 @@ function TransactionForm({
         label="หมวดหมู่"
         error={errors.categoryId}
         hint={options.length === 0 ? `ยังไม่มีหมวดหมู่สำหรับ${TYPE_LABELS[values.type]}` : undefined}
-        className="mt-1"
       >
         <Select
           id={`${formId}-categoryId`}
@@ -216,7 +216,7 @@ function TransactionForm({
       </Field>
       {options.length === 0 ? (
         <p className="-mt-1 mb-2 text-sm">
-          <Link href={`${basePath}/categories`} onClick={onClose}>
+          <Link href={`${basePath}/categories`} onClick={onClose} className="text-link">
             ไปที่หน้าหมวดหมู่เพื่อเพิ่มหมวดใหม่
           </Link>
         </p>
@@ -227,7 +227,6 @@ function TransactionForm({
         label="รายละเอียด"
         error={errors.description}
         hint={`${values.description.length}/${DESCRIPTION_MAX} ตัวอักษร`}
-        className="mt-1"
       >
         <input
           id={`${formId}-description`}
@@ -249,7 +248,7 @@ function TransactionForm({
         {formError}
       </p>
 
-      <div className="mt-3 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+      <div className="mt-2 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <button type="button" className="btn btn-card" onClick={onClose}>
           ยกเลิก
         </button>

@@ -1,5 +1,7 @@
 "use client";
 
+import type { CSSProperties } from "react";
+
 import {
   Bar,
   BarChart,
@@ -143,6 +145,7 @@ export function MonthlyBars({ data, title }: { data: MonthlySummary[]; title: st
       >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
+            accessibilityLayer={false}
             data={data}
             barGap={3}
             barCategoryGap="26%"
@@ -211,7 +214,11 @@ export function NetTrend({ data, title }: { data: MonthlySummary[]; title: strin
         className="mt-3 h-64"
       >
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+          <LineChart
+            accessibilityLayer={false}
+            data={data}
+            margin={{ top: 8, right: 12, bottom: 0, left: 0 }}
+          >
             <CartesianGrid vertical={false} stroke="var(--color-rule)" />
             <XAxis
               dataKey="month"
@@ -267,8 +274,10 @@ export function NetTrend({ data, title }: { data: MonthlySummary[]; title: strin
 export function CategoryBreakdown({ totals }: { totals: CategoryTotal[] }) {
   const grandTotal = totals.reduce((sum, total) => sum + total.totalSatang, 0);
 
+  const fitTo = (text: string) => ({ "--figure-chars": text.length }) as CSSProperties;
+
   return (
-    <div>
+    <div className="@container">
       <div aria-hidden="true" className="flex h-3 gap-0.5 overflow-hidden rounded-[2px]">
         {totals.map((total) => (
           <span
@@ -278,24 +287,30 @@ export function CategoryBreakdown({ totals }: { totals: CategoryTotal[] }) {
           />
         ))}
       </div>
-      <ol className="mt-4 grid gap-0">
+      <ol className="mt-4">
         {totals.map((total) => (
           <li
             key={total.categoryId}
-            className="grid grid-cols-[1fr_auto_3.5rem] items-baseline gap-3 border-b border-rule py-2 text-sm last:border-b-0"
+            className="flex flex-wrap items-baseline gap-x-3 border-b border-rule py-2 text-sm last:border-b-0"
           >
-            <span className="flex min-w-0 items-baseline gap-2">
+            <span className="flex min-w-0 flex-[1_1_5rem] items-baseline gap-2">
               <Swatch color={total.color} className="translate-y-px" />
               <span className="truncate">{total.name}</span>
             </span>
-            <span className="fig">{formatBaht(total.totalSatang)}</span>
-            <span className="fig text-right text-muted">{formatShare(total.share)}</span>
+            <span className="ml-auto flex flex-wrap items-baseline justify-end gap-x-3">
+              <span className="fig fit-amount" style={fitTo(formatBaht(total.totalSatang))}>
+                {formatBaht(total.totalSatang)}
+              </span>
+              <span className="fig min-w-14 text-right text-muted">{formatShare(total.share)}</span>
+            </span>
           </li>
         ))}
       </ol>
-      <p className="mt-3 flex items-baseline justify-between border-t border-rule-2 pt-2 text-sm font-medium">
+      <p className="mt-3 flex flex-wrap items-baseline justify-between gap-x-3 border-t border-rule-2 pt-2 text-sm font-medium">
         <span>รวมรายจ่าย</span>
-        <span className="fig">{formatBaht(grandTotal)}</span>
+        <span className="fig fit-amount ml-auto" style={fitTo(formatBaht(grandTotal))}>
+          {formatBaht(grandTotal)}
+        </span>
       </p>
     </div>
   );

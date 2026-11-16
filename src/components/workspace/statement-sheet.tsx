@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import type { Summary } from "@/lib/finance/aggregate";
 import { formatBaht } from "@/lib/finance/money";
@@ -25,6 +25,9 @@ export function StatementSheet({
   footer,
 }: StatementSheetProps) {
   const { netSatang, incomeSatang, expenseSatang, count } = summary;
+  const net = formatBaht(netSatang);
+  const income = formatBaht(incomeSatang);
+  const expense = formatBaht(expenseSatang);
   const outcome =
     count === 0
       ? null
@@ -45,11 +48,14 @@ export function StatementSheet({
           <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
             <p
               data-testid="net-result"
-              className={`max-w-none text-figure leading-none font-semibold tracking-[-0.04em] tabular-nums @md:text-figure-lg ${
+              className={`statement-figure max-w-none leading-none font-semibold tracking-[-0.04em] whitespace-nowrap tabular-nums ${
                 netSatang < 0 ? "text-error" : "text-print"
               }`}
+              // The figure is never truncated: its size follows the number of
+              // characters when the sheet is too narrow for the full size.
+              style={{ "--figure-chars": net.length } as CSSProperties}
             >
-              {formatBaht(netSatang)}
+              {net}
             </p>
             {outcome ? (
               <span className="stamp text-lg" data-tone={outcome.tone}>
@@ -60,16 +66,24 @@ export function StatementSheet({
         </div>
 
         <dl className="grid content-center text-sm">
-          <div className="flex items-baseline justify-between gap-4 border-b border-rule py-2.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 border-b border-rule py-2.5">
             <dt className="font-medium text-ink-2">รายรับ</dt>
-            <dd data-testid="total-income" className="fig text-base">
-              {formatBaht(incomeSatang)}
+            <dd
+              data-testid="total-income"
+              className="fig statement-value ml-auto"
+              style={{ "--figure-chars": income.length } as CSSProperties}
+            >
+              {income}
             </dd>
           </div>
-          <div className="flex items-baseline justify-between gap-4 border-b border-rule py-2.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 border-b border-rule py-2.5">
             <dt className="font-medium text-ink-2">รายจ่าย</dt>
-            <dd data-testid="total-expense" className="fig text-base">
-              {formatBaht(expenseSatang)}
+            <dd
+              data-testid="total-expense"
+              className="fig statement-value ml-auto"
+              style={{ "--figure-chars": expense.length } as CSSProperties}
+            >
+              {expense}
             </dd>
           </div>
           <div className="flex items-baseline justify-between gap-4 py-2.5">
